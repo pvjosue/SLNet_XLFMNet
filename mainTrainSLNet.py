@@ -214,7 +214,7 @@ for epoch in range(start_epoch, args.max_epochs):
 
 
         # Store losses of current epoch
-        mean_volume_loss = 0 
+        mean_loss = 0 
         mean_psnr = 0
         mean_time = 0
         mean_eigen_values = torch.zeros([args.n_frames])
@@ -358,11 +358,11 @@ for epoch in range(start_epoch, args.max_epochs):
             dense_part,_ = normalize_type(dense_part.float(), 0, args.norm_type, mean_imgs, std_images, mean_vols, std_vols, max_images, max_volumes, inverse=True)
             
             sparse_part = F.relu(curr_img_stack-dense_part.detach())
-            mean_volume_loss += full_loss.item()
+            mean_loss += full_loss.item()
 
         # Compute different performance metrics
-        mean_volume_loss /= curr_loader_len
-        mean_psnr = 20 * torch.log10(max_images / torch.sqrt(torch.tensor(mean_volume_loss))) 
+        mean_loss /= curr_loader_len
+        mean_psnr = 20 * torch.log10(max_images / torch.sqrt(torch.tensor(mean_loss))) 
         mean_time /= curr_loader_len
         mean_eigen_values /= curr_loader_len
         mean_eigen_values_cropped /= curr_loader_len
@@ -413,7 +413,7 @@ for epoch in range(start_epoch, args.max_epochs):
             writer.add_image('image_intermediate_dense'+curr_train_stage, input_intermediate_dense_grid, epoch)
             writer.add_image('image_reconSVC_dense'+curr_train_stage, input_intermediate_recon_dense_grid, epoch)
             writer.add_image('GT_S_'+curr_train_stage, input_intermediate_sparse_GT_grid, epoch)
-            writer.add_scalar('Loss/'+curr_train_stage, mean_volume_loss, epoch)
+            writer.add_scalar('Loss/'+curr_train_stage, mean_loss, epoch)
             writer.add_scalar('Loss/mean_sparse_l1_'+curr_train_stage, mean_sparse_l1, epoch)
             writer.add_scalar('regularization_weights/alpha_l1', net.alpha_l1, epoch)
             writer.add_scalar('regularization_weights/mu_sum_constraint', net.mu_sum_constraint.item(), epoch)
@@ -429,7 +429,7 @@ for epoch in range(start_epoch, args.max_epochs):
             for k,v in perf_metrics.items():
                 writer.add_scalar('metrics/'+k+'_'+curr_train_stage, v[-1], epoch)
 
-        print(str(epoch) + ' ' + curr_train_stage + " loss: " + str(mean_volume_loss) + " eigenCrop: " + str(mean_eigen_crop) + " time: " + str(mean_time))#, end="\r")
+        print(str(epoch) + ' ' + curr_train_stage + " loss: " + str(mean_loss) + " eigenCrop: " + str(mean_eigen_crop) + " time: " + str(mean_time))#, end="\r")
 
         if epoch%25==0:
             torch.save({
@@ -439,5 +439,5 @@ for epoch in range(start_epoch, args.max_epochs):
             'model_state_dict': net.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'scaler_state_dict' : scaler.state_dict(),
-            'loss': mean_volume_loss},
+            'loss': mean_loss},
             save_folder + '/model_'+str(epoch))

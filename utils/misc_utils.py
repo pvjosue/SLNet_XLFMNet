@@ -104,13 +104,10 @@ def reprojection_loss_camera(gt_imgs, prediction, PSF, camera, dataset, device="
 
     return loss.type(out_type), reprojection_views.type(out_type), gt_imgs.type(out_type), reprojection.type(out_type)
 
-def reprojection_loss(gt_imgs, prediction, OTF, psf_shape, dataset, n_split=20, device="cpu", loss=F.mse_loss, groups_to_eval=[]):
-    # Compute reprojection only in certain depths for speedup?
-    if len(groups_to_eval)==0:
-        groups_to_eval = list(range(n_split))
+def reprojection_loss(gt_imgs, prediction, OTF, psf_shape, dataset, n_split=20, device="cpu", loss=F.mse_loss):
     out_type = gt_imgs.type()
     batch_size = prediction.shape[0]
-    reprojection = fft_conv_split(prediction[0,...].unsqueeze(0), OTF, psf_shape, n_split, B_precomputed=True, device=device, groups_to_eval=groups_to_eval)
+    reprojection = fft_conv_split(prediction[0,...].unsqueeze(0), OTF, psf_shape, n_split, B_precomputed=True, device=device)
 
     reprojection_views = torch.zeros_like(gt_imgs)
     reprojection_views[0,...] = dataset.extract_views(reprojection, dataset.lenslet_coords, dataset.subimage_shape)[0,0,...]
@@ -118,7 +115,7 @@ def reprojection_loss(gt_imgs, prediction, OTF, psf_shape, dataset, n_split=20, 
     # full_reprojection = reprojection.detach()
     # reprojection_views = reprojection_views.unsqueeze(0).repeat(batch_size,1,1,1)
     for nSample in range(1,batch_size):
-        reprojection = fft_conv_split(prediction[nSample,...].unsqueeze(0), OTF, psf_shape, n_split, B_precomputed=True, device=device, groups_to_eval=groups_to_eval)
+        reprojection = fft_conv_split(prediction[nSample,...].unsqueeze(0), OTF, psf_shape, n_split, B_precomputed=True, device=device)
         reprojection_views[nSample,...] = dataset.extract_views(reprojection, dataset.lenslet_coords, dataset.subimage_shape)[0,0,...]
         # full_reprojection += reprojection.detach()
 
@@ -149,7 +146,7 @@ def fft_conv_split(A, B, psf_shape, n_split, B_precomputed=False, device = "cpu"
     for n in range(n_split):
         # print(n)
         curr_psf = B[:,depths[n],...].to(device)
-        img_curr = fft_conv_new(A[:,depths[n],...].to(device), curr_psf, fullSize, psf_shape, B_precomputed)
+        img_curr = fft_conv(A[:,depths[n],...].to(device), curr_psf, fullSize, psf_shape, B_precomputed)
         if B_precomputed == False:
             OTF_out[:,depths[n],...] = img_curr[1]
             img_curr = img_curr[0]
@@ -284,8 +281,7 @@ def load_PSF_OTF(filename, vol_size, n_split=20, n_depths=120, downS=1, device="
 
     psf_shape = torch.tensor(psfIn.shape[2:])
     vol = torch.rand(1,vol_size[2], vol_size[0], vol_size[1], device=device)
-    # img1, OTF1 = fft_conv_split(vol, psfIn.float().detach().to(device), psf_shape, n_split=n_split, device=device)
-    img, OTF = fft_conv_split_new(vol, psfIn.float().detach().to(device), psf_shape, n_split=n_split, device=device)
+    img, OTF = fft_conv_split(vol, psfIn.float().detach().to(device), psf_shape, n_split=n_split, device=device)
     
     OTF = OTF.detach()
 
