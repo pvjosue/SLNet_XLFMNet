@@ -50,7 +50,7 @@ The SLNet grabs 3 images from different time frames (captured with 50ms in betwe
   #### Output
   A 3D volume with the shape **batch,nD,x,y**. Where nD are the number of desired depths.
     
-### Train workflow
+### Train
 * mainTrainSLNet.py: Train the SLNet unsupervised (no GT, only minimizing a loss function with the raw images).
 * mainCreateDataset.py: Generate a image -> 3D volume dataset to train the XLFMNet
 * mainTrainXLFMNet.py: Train the XLFMNet with the freshly created dataset.
