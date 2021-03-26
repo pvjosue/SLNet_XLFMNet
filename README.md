@@ -3,7 +3,6 @@
 [![Issues][issues-shield]][issues-url]-->
 [![Apache License][license-shield]][license-url]
 [![Google Scholar][gs-shield]][gs-url]
-[![PDF][arxiv-shield]][arxiv-url]
 
 # Real-Time Light Field 3D Microscopy via Sparsity-Driven Learned Deconvolution
 
@@ -50,11 +49,15 @@ The SLNet grabs 3 images from different time frames (captured with 50ms in betwe
   #### Output
   A 3D volume with the shape **batch,nD,x,y**. Where nD are the number of desired depths.
     
-### Train 
+### Train workflow
+* mainTrainSLNet.py: Train the SLNet unsupervised (no GT, only minimizing a loss function with the raw images).
+* mainCreateDataset.py: Generate a image -> 3D volume dataset to train the XLFMNet
+* mainTrainXLFMNet.py: Train the XLFMNet with the freshly created dataset.
+
+
 #### Train SLNet
-The training main file is mainTrain.py:
 ```bash
-python3 mainTrain.py --epochs 1000 --valEvery 0.25 --imagesToUse 0 1 2 3 4 5 --GPUs 0 --batchSize 64 --validationSplit 0.1 --biasVal 0.1 --learningRate 0.005 --useBias True --useSkipCon False --fovInput 9 --neighShape 3 --useShallowUnet True --ths 0.03 --datasetPath "BrainLFMConfocalDataset/Brain_40x_64Depths_362imgs.h5" --outputPath, nargs='? "runs/" --outputPrefix "" --checkpointPath ""
+python3 mainTrain.py
 ```
 
 |Parameter|Default|Description|
@@ -100,12 +103,50 @@ python3 mainTrain.py --epochs 1000 --valEvery 0.25 --imagesToUse 0 1 2 3 4 5 --G
 |output_path|runs_dir + '/camera_ready/')
 |main_gpu|[5]|List of GPUs to use: [0,1]|
 
+#### Generate training dataset for XLFMNet
+```bash
+python3 mainCreateDataset.py
+```
+XLFMNet is trained with sparse images and 3D volumes.
+This script generates the sparse representation with a pretrained SLNet and performs a 3D deconvolution to this data. Additionally it computes the standard SD decomposition from [1], and it's deconvolution, for comparison. To enable the SD set the --SD_iterations > 0.
+
+
+|Parameter|Default|Description|
+|---|---|---|
+|SD_iterations|10|Number of iterations for Sparse Decomposition, 0 to disable.|
+|frame_to_grab|0|Which frame to show from the sparse decomposition?|
+|deconv_iterations|30|Number of iterations for 3D deconvolution, for GT volume generation.|
+|deconv_n_depths|120|Number of depths to create in 3D deconvolution.|
+|deconv_limit|10000|Maximum intensity allowed from doconvolution.|
+|deconv_gpu|-1|GPU to use for deconvolution, -1 to use CPU, this is very memory intensive.|
+
+#### Generate training dataset for XLFMNet
+```bash
+python3 mainCreateDataset.py
+```
+XLFMNet is trained with sparse images and 3D volumes.
+This script generates the sparse representation with a pretrained SLNet and performs a 3D deconvolution to this data. Additionally it computes the standard SD decomposition from [1], and it's deconvolution, for comparison. To enable the SD set the --SD_iterations > 0.
+
+
+|Parameter|Default|Description|
+|---|---|---|
+|SD_iterations|10|Number of iterations for Sparse Decomposition, 0 to disable.|
+|frame_to_grab|0|Which frame to show from the sparse decomposition?|
+|deconv_iterations|30|Number of iterations for 3D deconvolution, for GT volume generation.|
+|deconv_n_depths|120|Number of depths to create in 3D deconvolution.|
+|deconv_limit|10000|Maximum intensity allowed from doconvolution.|
+|deconv_gpu|-1|GPU to use for deconvolution, -1 to use CPU, this is very memory intensive.|
+
+
 ## Acknowledgements
 * [Computational Imaging and Inverse Problems, University of Munich](https://ciip.in.tum.de/ "")
 * [Synthetic Neurobiology Group, MIT](http://syntheticneurobiology.org/ "")
 * [Computer Vision Group, University of Bern](http://www.cvg.unibe.ch/ "")
 * [McGovern Institute for Brain Research, MIT](https://mcgovern.mit.edu/ "")
 
+## Sources
+
+1. [Yoon, Young-Gyu and Wang, Zeguan and Pak, Nikita and Park, Demian and Dai, Peilun and Kang, Jeong Seuk and Suk, Ho-Jun and Symvoulidis, Panagiotis and Guner-Ataman, Burcu and Wang, Kai and Boyden, Edward S. "Sparse decomposition light-field microscopy for high speed imaging of neuronal activity" *Optica 2020*](https://www.osapublishing.org/optica/fulltext.cfm?uri=optica-7-10-1457&id=441774)
 
 ## Contact
 Josue Page - josue.page@tum.de
