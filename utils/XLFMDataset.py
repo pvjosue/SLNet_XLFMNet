@@ -29,7 +29,7 @@ def get_lenslet_centers(filename):
     return lenslet_coords
 
 class XLFMDatasetFull(data.Dataset):
-    def __init__(self, data_path, lenslet_coords_path, subimage_shape, img_shape, images_to_use=None, lenslets_offset=0, divisor=4, isTiff=False,
+    def __init__(self, data_path, lenslet_coords_path, subimage_shape, img_shape, images_to_use=None, lenslets_offset=50, divisor=4, isTiff=False,
      load_vols=True, load_all=False, load_sparse=False, n_frames_net=1, temporal_shifts=[0,1,2], eval_video=False, use_random_shifts=False, maxWorkers=10):
         # Load lenslets coordinates
         self.lenslet_coords = get_lenslet_centers(lenslet_coords_path) + torch.tensor(lenslets_offset)
@@ -55,7 +55,7 @@ class XLFMDatasetFull(data.Dataset):
             # Tiff images are stored in single tiff stack
             # Volumes are stored in individual tiff stacks
             imgs_path = data_path + '/XLFM_image/XLFM_image_stack.tif'
-            imgs_path_sparse = data_path + '/XLFM_image/XLFM_image_stack_S.tif'
+            imgs_path_sparse = data_path + '/XLFM_image/XLFM_image_stack_S_SL.tif'
             vols_path = data_path + '/XLFM_stack/*.tif'
 
             # dataset = Image.open(imgs_path)
@@ -78,7 +78,7 @@ class XLFMDatasetFull(data.Dataset):
                 self.all_files = [sorted(glob.glob(vols_path))[images_to_use[i]] for i in range(self.n_images)]
 
             if self.load_sparse:
-                vols_path_sparse = data_path + '/XLFM_stack_S/*.tif'
+                vols_path_sparse = data_path + '/XLFM_stack_S_SL/*.tif'
             if load_vols:
                 self.all_files= [sorted(glob.glob(vols_path_sparse))[images_to_use[i]] for i in range(self.n_images)]
                 # read single volume
@@ -263,20 +263,30 @@ class XLFMDatasetFull(data.Dataset):
         return stacked_views,currVol.permute(2,0,1),image
 
     @staticmethod
-    def extract_views(image, lenslet_coords, subimage_shape):
+    def extract_views(image, lenslet_coords, subimage_shape, debug=False):
         # print(str(image.shape))
         half_subimg_shape = [subimage_shape[0]//2,subimage_shape[1]//2]
         n_lenslets = lenslet_coords.shape[0]
         stacked_views = torch.zeros(size=[image.shape[0], image.shape[1], n_lenslets, subimage_shape[0], subimage_shape[1]], device=image.device).type(image.type())
+        
+        if debug:
+            debug_image = image.detach().clone()
+            max_img = image.float().cpu().max()
         for nLens in range(n_lenslets):
             # Fetch coordinates
             currCoords = lenslet_coords[nLens,:]
+            if debug:
+                debug_image[:,:,currCoords[0]-2:currCoords[0]+2,currCoords[1]-2:currCoords[1]+2] = max_img
             # Grab patches
-            lower_bounds = [currCoords[1]-half_subimg_shape[0], currCoords[0]-half_subimg_shape[1]]
+            lower_bounds = [currCoords[0]-half_subimg_shape[0], currCoords[1]-half_subimg_shape[1]]
             lower_bounds = [max(lower_bounds[kk],0) for kk in range(2)]
-            currPatch = image[:,:,lower_bounds[0] : currCoords[1]+half_subimg_shape[0], lower_bounds[1] : currCoords[0]+half_subimg_shape[1]]
+            currPatch = image[:,:,lower_bounds[0] : currCoords[0]+half_subimg_shape[0], lower_bounds[1] : currCoords[1]+half_subimg_shape[1]]
             stacked_views[:,:,nLens,-currPatch.shape[2]:,-currPatch.shape[3]:] = currPatch
-            
+        
+        if debug:
+            import matplotlib.pyplot as plt
+            plt.imshow(debug_image[0,0,...].float().cpu().detach().numpy())
+            plt.show()
         return stacked_views
         
     @staticmethod

@@ -59,11 +59,12 @@ parser.add_argument('--deconv_n_depths', type=int, default=120, help='Number of 
 parser.add_argument('--deconv_limit', type=float, default=10000, help='Maximum intensity allowed from doconvolution.')
 parser.add_argument('--deconv_gpu', type=int, default=-1, help='GPU to use for deconvolution, -1 to use CPU, this is very memory intensive.')
 
-parser.add_argument('--output_path', nargs='?', default=runs_dir + '/camera_ready_github/2021_03_26__11:54:000_gpu__/')
+# parser.add_argument('--output_path', nargs='?', default=runs_dir + '/camera_ready_github/2021_03_26__11:54:000_gpu__/')
+parser.add_argument('--output_path', nargs='?', default=runs_dir + '/garbage/')
 parser.add_argument('--main_gpu', nargs='+', type=int, default=[], help='List of GPUs to use: [0,1]')
 
 # Set to zero if debuging
-n_threads = 10
+n_threads = 0
 args = parser.parse_args()
 # Select which devices to use
 if len(args.main_gpu)>0:

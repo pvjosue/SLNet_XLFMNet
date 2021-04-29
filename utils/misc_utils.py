@@ -12,6 +12,8 @@ import h5py
 import gc
 import re
 import numpy as np
+import findpeaks
+import pickle
 
 # Prepare a volume to be shown in tensorboard as an image
 def volume_2_tensorboard(vol, batch_index=0, z_scaling=2):
@@ -271,11 +273,15 @@ def load_PSF(filename, n_depths=120):
     
     return psfIn
 
-def load_PSF_OTF(filename, vol_size, n_split=20, n_depths=120, downS=1, device="cpu", dark_current=106, calc_max=False, psfIn=None):
+def load_PSF_OTF(filename, vol_size, n_split=20, n_depths=120, downS=1, device="cpu",
+                 dark_current=106, calc_max=False, psfIn=None,
+                 n_lenslets=29, lenslet_centers_file_out='lenslet_centers_python.txt'):
     # Load PSF
     if psfIn is None:
         psfIn = load_PSF(filename, n_depths)
 
+    if len(lenslet_centers_file_out)>0:
+        find_lenslet_centers(psfIn[0,n_depths//2,...].numpy(), n_lenslets=n_lenslets, file_out_name=lenslet_centers_file_out)
     if calc_max:
         psfMaxCoeffs = torch.amax(psfIn, dim=[0,2,3])
 
@@ -290,6 +296,29 @@ def load_PSF_OTF(filename, vol_size, n_split=20, n_depths=120, downS=1, device="
     else:
         return OTF,psf_shape
 
+
+def find_lenslet_centers(img, n_lenslets=29, file_out_name='lenslet_centers_python.txt'):
+    fp2 = findpeaks.findpeaks()
+    
+    image_divisor = 4 # To find the centers faster
+    img = findpeaks.stats.resize(img, size=(img.shape[0]//image_divisor,img.shape[1]//image_divisor))
+    results_2 = fp2.fit(img)
+    limit_min = fp2.results['persistence'][0:n_lenslets+1]['score'].min()
+
+    # Initialize topology
+    fp = findpeaks.findpeaks(method='topology', limit=limit_min)
+    # make the fit
+    results = fp.fit(img)
+    # Make plot
+    fp.plot_persistence()
+    # fp.plot()
+    results = np.ndarray([n_lenslets,2], dtype=int)
+    for ix,data in enumerate(fp.results['groups0']):
+        results[ix] = np.array(data[0], dtype=int) * image_divisor
+    if len(file_out_name) > 0:
+        np.savetxt(file_out_name, results, fmt='%d', delimiter='\t')
+
+    return results
 
 # Aid functions for getting information out of directory names
 def get_intensity_scale_from_name(name):
