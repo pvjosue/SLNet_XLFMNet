@@ -55,7 +55,7 @@ class XLFMDatasetFull(data.Dataset):
             # Tiff images are stored in single tiff stack
             # Volumes are stored in individual tiff stacks
             imgs_path = data_path + '/XLFM_image/XLFM_image_stack.tif'
-            imgs_path_sparse = data_path + '/XLFM_image/XLFM_image_stack_S_SL.tif'
+            imgs_path_sparse = data_path + '/XLFM_image/XLFM_image_stack_S.tif'
             vols_path = data_path + '/XLFM_stack/*.tif'
 
             # dataset = Image.open(imgs_path)
@@ -96,8 +96,15 @@ class XLFMDatasetFull(data.Dataset):
                 self.vols = 255*torch.ones(1)
             
             # Grab patches
+            total_n_images = self.n_images
+            n_sub_images = 1
+            if not eval_video:
+                # As the frames are already arranged with the proper shift just set the shift to 0,1,2...
+                self.temporal_shifts = list(range(len(self.temporal_shifts)))
+                total_n_images *= len(self.temporal_shifts)
+                n_sub_images = len(self.temporal_shifts)
             if load_all:
-                self.stacked_views = torch.zeros(self.n_images, self.img_shape[0], self.img_shape[1],dtype=torch.float16)
+                self.stacked_views = torch.zeros(total_n_images, self.img_shape[0], self.img_shape[1],dtype=torch.float16)
             else:
                 self.stacked_views = torch.zeros(1, self.img_shape[0], self.img_shape[1],dtype=torch.float16)
             
@@ -111,19 +118,23 @@ class XLFMDatasetFull(data.Dataset):
                     assert not torch.isinf(currVol).any()
                     self.vols[nImg,:,:,:] = currVol.permute(2,0,1)\
                         [:,self.volStart[0]:self.volEnd[0],self.volStart[1]:self.volEnd[1]]
-                
+            
                 if self.load_all:
-                    # self.img_dataset.seek(nImg)
-                    curr_img = images_to_use[nImg]
-                    image = torch.from_numpy(np.array(self.img_dataset[curr_img,:,:]).astype(np.float16)).type(torch.float16)
+                    for nSubImg in range(n_sub_images):
+                        curr_img = images_to_use[nImg] * n_sub_images + nSubImg
+                        nImg_storage = nImg * n_sub_images + nSubImg
+                        image = torch.from_numpy(np.array(self.img_dataset[curr_img,:,:]).astype(np.float16)).type(torch.float16)
 
-                    image = self.pad_img_to_min(image)
-                    self.stacked_views[nImg,...] = image
-                    
-                    if self.load_sparse:
-                        image = torch.from_numpy(np.array(self.img_dataset_sparse[curr_img,:,:]).astype(np.float16)).type(torch.float16)
                         image = self.pad_img_to_min(image)
-                        stacked_views_sparse[nImg,...] = image
+                        self.stacked_views[nImg_storage,...] = image
+                        
+                        if self.load_sparse:
+                            image = torch.from_numpy(np.array(self.img_dataset_sparse[curr_img,:,:]).astype(np.float16)).type(torch.float16)
+                            image = self.pad_img_to_min(image)
+                            stacked_views_sparse[nImg_storage,...] = image
+                    
+                    
+
 
             if self.load_sparse:
                 self.stacked_views = torch.cat((self.stacked_views.unsqueeze(-1), stacked_views_sparse.unsqueeze(-1)), dim=3)
@@ -145,7 +156,7 @@ class XLFMDatasetFull(data.Dataset):
         if self.eval_video:
             return self.n_images-np.max(self.temporal_shifts)
         else:
-            return int(self.n_images - np.max(self.temporal_shifts))# - np.max(self.temporal_shifts))
+            return int(self.n_images)# - np.max(self.temporal_shifts))
 
     def get_n_depths(self):
         return self.vols.shape[1]
@@ -185,41 +196,11 @@ class XLFMDatasetFull(data.Dataset):
         image = F.pad(image.unsqueeze(0).unsqueeze(0), img_pad)[0,0]
         return image
 
-    def get_single_image(self,index):
-        if self.load_all:
-            return self.stacked_views[index,...]
-        else:
-            stacked_views = torch.zeros(self.n_lenslets, self.subimage_shape[0], self.subimage_shape[1])
-            image = torch.from_numpy(np.array(self.img_dataset[index,:,:]).astype(np.float)).type(torch.int32)
-            for nLens in range(self.n_lenslets):
-                # Fetch coordinates
-                currCoords = self.lenslet_coords[nLens,:]
-                # Grab patches
-                currPatch = image[currCoords[1]-self.half_subimg_shape[0]-1 : currCoords[1]+self.half_subimg_shape[0], currCoords[0]-self.half_subimg_shape[1]-1 : currCoords[0]+self.half_subimg_shape[1]]
-                stacked_views[nLens,:currPatch.shape[0],:currPatch.shape[1]] = currPatch[:stacked_views.shape[1],:stacked_views.shape[2]]
-
-            if self.load_sparse:
-                stacked_views_sparse = torch.zeros(self.n_lenslets, self.subimage_shape[0], self.subimage_shape[1])
-                image = torch.from_numpy(np.array(self.img_dataset_sparse[index,:,:]).astype(np.float)).type(torch.int32)
-                for nLens in range(self.n_lenslets):
-                    # Fetch coordinates
-                    currCoords = self.lenslet_coords[nLens,:]
-                    # Grab patches
-                    currPatch = image[currCoords[1]-self.half_subimg_shape[0]-1 : currCoords[1]+self.half_subimg_shape[0], currCoords[0]-self.half_subimg_shape[1]-1 : currCoords[0]+self.half_subimg_shape[1]]
-                    stacked_views_sparse[nLens,:currPatch.shape[0],:currPatch.shape[1]] = currPatch[:stacked_views_sparse.shape[1],:stacked_views_sparse.shape[2]]
-                stacked_views = torch.cat((stacked_views.unsqueeze(-1), stacked_views_sparse.unsqueeze(-1)), dim=3)
-        return stacked_views
-
     def __getitem__(self, index):
-        # Check if a temporal serie is needed
-        # if self.n_frames == 1: 
-        #     views_out = self.get_single_image(index)
-        #     #'Generates one sample of data'
-        # else:
         if self.eval_video:
             newIndex = index
         else:
-            newIndex = int(self.n_frames*index)#*int(index//self.n_frames)
+            newIndex = int(self.n_frames*index)
         
         temporal_shifts_ixs = list(range(0,self.n_frames))
         if len(self.temporal_shifts)>0 and not sorted(self.temporal_shifts) == list(range(min(self.temporal_shifts), max(self.temporal_shifts)+1)):
@@ -228,13 +209,13 @@ class XLFMDatasetFull(data.Dataset):
             if self.use_random_shifts:
                 temporal_shifts_ixs = torch.randint(0, self.n_images-1,[3]).numpy()
                 newIndex = 0
-        index = newIndex
+        img_index = newIndex
 
-        if index+temporal_shifts_ixs[-1]>self.n_images:
-            index = torch.randint(0,self.n_images-temporal_shifts_ixs[-1],[1]).item()
-            newIndex = self.n_frames*int(index//self.n_frames)
-            index = newIndex
-        indices = [index + temporal_shifts_ixs[i] for i in range(self.n_frames)] #list(range(index,index+self.n_frames))
+        # if img_index+temporal_shifts_ixs[-1]>self.n_images and self.eval_video:
+        #     index = torch.randint(0,self.n_images-temporal_shifts_ixs[-1],[1]).item()
+        #     newIndex = self.n_frames*int(index//self.n_frames)
+        #     index = newIndex
+        indices = [img_index + temporal_shifts_ixs[i] for i in range(self.n_frames)] #list(range(index,index+self.n_frames))
         
         views_out = self.stacked_views[indices,...]
         # nDims = list(range(2,len(views_out.shape)))

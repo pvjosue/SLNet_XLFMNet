@@ -25,13 +25,15 @@ runs_dir = "/space/vizcainj/shared/XLFMNet/runs/"
 data_dir = "/space/vizcainj/shared/datasets/XLFM/"
 
 filename = "/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/2021_03_26__13:55:15_120nD__20_F__3timeF__10000_DecLimit__2"
+filename = "/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/2021_04_30__14:24:27_120nD__20_F__3timeF__10000_DecLimit__3FramesStored"
 test_file_name = filename
 
 # Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_folder', nargs='?', default= filename)#main_folder + "/data/20200730_XLFM_beads_images/Simulated_beads/" + filename + "/")
 parser.add_argument('--data_folder_test', nargs='?', default=test_file_name)
-parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_coords.txt")
+# parser.add_argument('--lenslet_file', nargs='?', default= "/u/home/vizcainj/datasets/XLFM/lenslet_coords.txt")
+parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt")
 parser.add_argument('--files_to_store', nargs='+', default=['mainTrainXLFMNet.py','mainTrainSLNet.py','mainCreateDataset.py','utils/XLFMDataset.py','utils/misc_utils.py','nets/extra_nets.py','nets/XLFMNet.py','nets/SLNet.py'])
 parser.add_argument('--psf_file', nargs='?', default= main_folder + "/data/20200730_XLFM_beads_images/20200730_XLFM_PSF_2.5um/PSF_2.5um_processed.mat")
 parser.add_argument('--prefix', nargs='?', default= "3D_deconv")
@@ -39,15 +41,16 @@ parser.add_argument('--checkpoint', nargs='?', default= "")#runs_dir + 'paper/ex
 parser.add_argument('--checkpoint_XLFMNet', nargs='?', default= "")# runs_dir + '/post_paper/unsupervised_3D/2021_01_26__17:25:290_gpu__LL_regL1_noBias_weightXavier_L1.0_unsup_oldFFT_singleGroupRepro/model_')
 parser.add_argument('--checkpoint_SLNet', nargs='?', default= '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/model_200')
 
-parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,20,1)))
+parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,10,1)))
+parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(10,20,1)))
 parser.add_argument('--batch_size', type=int, default=2)
-parser.add_argument('--max_epochs', type=int, default=3001)
+parser.add_argument('--max_epochs', type=int, default=501)
 parser.add_argument('--validation_split', type=float, default=0.1)
-parser.add_argument('--eval_every', type=int, default=50)
+parser.add_argument('--eval_every', type=int, default=25)
 parser.add_argument('--shuffle_dataset', type=int, default=1)
-parser.add_argument('--learning_rate', type=float, default=0.002)
+parser.add_argument('--learning_rate', type=float, default=0.0001)
 parser.add_argument('--use_bias', type=int, default=0)
-parser.add_argument('--use_random_shifts', nargs='+', type=int, default=1, help='Randomize the temporal shifts to use? 0 or 1')
+parser.add_argument('--use_random_shifts', nargs='+', type=int, default=0, help='Randomize the temporal shifts to use? 0 or 1')
 # Noise arguments
 parser.add_argument('--add_noise', type=int, default=0, help='Apply noise to images? 0 or 1')
 parser.add_argument('--signal_power_max', type=float, default=30**2, help='Max signal value to control signal to noise ratio when applyting noise.')
@@ -63,9 +66,9 @@ parser.add_argument('--unet_depth', type=int, default=2)
 parser.add_argument('--unet_wf', type=int, default=7)
 parser.add_argument('--unet_drop_out', type=float, default=0)
 
-parser.add_argument('--output_path', nargs='?', default='/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/')
+parser.add_argument('--output_path', nargs='?', default='/space/vizcainj/shared/XLFMNet/runs/camera_ready_github_Apr/')
 parser.add_argument('--main_gpu', nargs='+', type=int, default=[0])
-parser.add_argument('--gpu_repro', nargs='+', type=int, default=[1])
+parser.add_argument('--gpu_repro', nargs='+', type=int, default=[])
 parser.add_argument('--n_split', type=int, default=20)
 
 debug = False
@@ -115,13 +118,13 @@ subimage_shape = argsSLNet.subimage_shape
     # args.n_frames = 1
 
 dataset = XLFMDatasetFull(args.data_folder, args.lenslet_file, subimage_shape, img_shape=[2160,2160],
-            images_to_use=args.images_to_use, divisor=1, isTiff=True, n_frames_net=argsSLNet.n_frames, 
-            load_all=True, load_vols=True, load_sparse=True, temporal_shifts=args.temporal_shifts, use_random_shifts=args.use_random_shifts, eval_video=True)
+            images_to_use=args.images_to_use, divisor=1, isTiff=True, n_frames_net=argsSLNet.n_frames, lenslets_offset=0,
+            load_all=True, load_vols=True, load_sparse=True, temporal_shifts=args.temporal_shifts, use_random_shifts=args.use_random_shifts, eval_video=False)
 
 
 dataset_test = XLFMDatasetFull(args.data_folder_test, args.lenslet_file, subimage_shape, img_shape=[2160,2160],  
-            images_to_use=list(range(0,110)), divisor=1, isTiff=True, n_frames_net=argsSLNet.n_frames, 
-            load_all=True, load_vols=True, load_sparse=True, temporal_shifts=args.temporal_shifts, use_random_shifts=args.use_random_shifts, eval_video=True)
+            images_to_use=args.images_to_use_test, divisor=1, isTiff=True, n_frames_net=argsSLNet.n_frames, lenslets_offset=0,
+            load_all=True, load_vols=True, load_sparse=True, temporal_shifts=args.temporal_shifts, use_random_shifts=args.use_random_shifts, eval_video=False)
 
 
 n_depths = dataset.get_n_depths()
@@ -241,28 +244,29 @@ if debug is False:
 
 import time
 
-S = time.time()
-# Load PSF and compute OTF
-n_split = args.n_split
-if debug:
-    n_split=60
-OTF,psf_shape = load_PSF_OTF(args.psf_file, args.output_shape, n_depths=n_depths, n_split=n_split, device="cpu")
-OTF = OTF.to(device)
-gc.collect()
-torch.cuda.empty_cache()
-E = time.time()
-print(E - S)
+if len(args.gpu_repro)>0:
+    S = time.time()
+    # Load PSF and compute OTF
+    n_split = args.n_split
+    if debug:
+        n_split=60
+    OTF,psf_shape = load_PSF_OTF(args.psf_file, args.output_shape, n_depths=n_depths, n_split=n_split, device="cpu")
+    OTF = OTF.to(device)
+    gc.collect()
+    torch.cuda.empty_cache()
+    E = time.time()
+    print(E - S)
 
-gc.collect()
-torch.cuda.empty_cache()
+    gc.collect()
+    torch.cuda.empty_cache()
 
-OTF_options =   {'OTF':OTF,
-                'psf_shape':psf_shape,
-                'dataset':dataset,
-                'n_split':n_split,
-                'loss_img':loss_img}
+    OTF_options =   {'OTF':OTF,
+                    'psf_shape':psf_shape,
+                    'dataset':dataset,
+                    'n_split':n_split,
+                    'loss_img':loss_img}
 
-net.OTF_options = OTF_options
+    net.OTF_options = OTF_options
 
 # Update noramlization stats for SLNet inside network
 net.stats = stats
@@ -286,7 +290,7 @@ for epoch in range(start_epoch, args.max_epochs):
         if curr_train_stage=='val' or curr_train_stage=='test':
             if epoch%args.eval_every!=0:
                 continue
-            net.eval()
+            # net.eval()
             torch.set_grad_enabled(False)
 
 
@@ -318,9 +322,10 @@ for epoch in range(start_epoch, args.max_epochs):
                 curr_img_sparse = curr_img_stack[...,-1].clone().to(device)
                 curr_img_stack = curr_img_stack[...,0].clone().to(device)
             
-            # if curr_train_stage=='test':
-            #     curr_img_stack -= args.dark_current
-            #     curr_img_stack = F.relu(curr_img_stack).detach()
+            curr_img_stack = curr_img_stack.half()
+
+            curr_img_stack -= args.dark_current
+            curr_img_stack = F.relu(curr_img_stack).detach()
 
             if args.add_noise==1 and curr_train_stage!='test':
                 curr_max = curr_img_stack.max()
@@ -370,11 +375,11 @@ for epoch in range(start_epoch, args.max_epochs):
                 # Extract lenslet images
                 curr_img_sparse = dataset.extract_views(curr_img_sparse, dataset.lenslet_coords, dataset.subimage_shape)[:,0,...]
 
-                curr_img_sparse, _ = normalize_type(curr_img_sparse, local_volumes, args.norm_type, mean_imgs_sparse, std_images_sparse, mean_vols, std_vols, max_images, max_volumes, inverse=True)
+                # curr_img_sparse, _ = normalize_type(curr_img_sparse, local_volumes, args.norm_type, mean_imgs_sparse, std_images_sparse, mean_vols, std_vols, max_images, max_volumes, inverse=True)
             
                 volume_loss = loss(local_volumes, prediction)
 
-                if curr_train_stage=='test' and args.gpu_repro is not None:
+                if curr_train_stage=='test' and len(args.gpu_repro)>0:
                     with torch.no_grad():
                         reproj_loss, reproj,curr_views,_ = reprojection_loss(sparse_prediction, prediction.float(), OTF, psf_shape, dataset, n_split, device_repro)
                     mean_repro += reproj_loss.item()
@@ -408,7 +413,7 @@ for epoch in range(start_epoch, args.max_epochs):
 
             if torch.isinf(torch.tensor(mean_volume_loss)):
                 print('inf')
-            # curr_img_sparse /= curr_img_sparse.max()
+            curr_img_sparse /= curr_img_sparse.max()
 
             local_volumes -= local_volumes.min()
             prediction -= prediction.min()
@@ -455,7 +460,7 @@ for epoch in range(start_epoch, args.max_epochs):
             input_intermediate_sparse_grid = tv.utils.make_grid(sparse_prediction[0,10,...].float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)
             input_GT_sparse_grid = tv.utils.make_grid(curr_img_sparse[0,10,...].float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)
 
-            if curr_train_stage=='test' and args.gpu_repro is not None:
+            if curr_train_stage=='test' and len(args.gpu_repro)>0:
                 repro_grid = tv.utils.make_grid(reproj[0,...].sum(0).float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)
                 writer.add_image('reproj_'+curr_train_stage, repro_grid, epoch)
                 repro_grid = tv.utils.make_grid(curr_img_sparse[0,...].sum(0).float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)

@@ -34,9 +34,9 @@ filename = "20200903_NLS_GCaMP6s_XLFM_confocal10x/XLFM/all_images"
 # Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_folder', nargs='?', default= data_dir + "/XLFM_real_fish/" + filename, help='Input images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
-parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_coords.txt")
+parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt")
 parser.add_argument('--files_to_store', nargs='+', default=[], help='Relative paths of files to store in a zip when running this script, for backup.')
-parser.add_argument('--prefix', nargs='?', default= "2", help='Prefix string for the output folder.')
+parser.add_argument('--prefix', nargs='?', default= "3FramesStored", help='Prefix string for the output folder.')
 parser.add_argument('--checkpoint', nargs='?', default= "/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/model_200", help='File path of checkpoint of SLNet.')
 parser.add_argument('--psf_file', nargs='?', default= main_folder + "/data/20200730_XLFM_beads_images/20200730_XLFM_PSF_2.5um/PSF_2.5um_processed.mat", help='.mat matlab file with PSF stack, used for deconvolution.')
 # Images related arguments
@@ -54,13 +54,13 @@ parser.add_argument('--temporal_shifts', nargs='+', type=int, default=[0,49,99],
 parser.add_argument('--SD_iterations', type=int, default=10, help='Number of iterations for Sparse Decomposition, 0 to disable.')
 parser.add_argument('--frame_to_grab', type=int, default=0, help='Which frame to show from the sparse decomposition?')
 # 3D deconvolution arguments
-parser.add_argument('--deconv_iterations', type=int, default=30, help='Number of iterations for 3D deconvolution, for GT volume generation.')
+parser.add_argument('--deconv_iterations', type=int, default=0, help='Number of iterations for 3D deconvolution, for GT volume generation.')
 parser.add_argument('--deconv_n_depths', type=int, default=120, help='Number of depths to create in 3D deconvolution.')
 parser.add_argument('--deconv_limit', type=float, default=10000, help='Maximum intensity allowed from doconvolution.')
 parser.add_argument('--deconv_gpu', type=int, default=-1, help='GPU to use for deconvolution, -1 to use CPU, this is very memory intensive.')
 
-# parser.add_argument('--output_path', nargs='?', default=runs_dir + '/camera_ready_github/2021_03_26__11:54:000_gpu__/')
-parser.add_argument('--output_path', nargs='?', default=runs_dir + '/garbage/')
+parser.add_argument('--output_path', nargs='?', default=runs_dir + '/camera_ready_github/2021_03_26__11:54:000_gpu__/')
+# parser.add_argument('--output_path', nargs='?', default=runs_dir + '/garbage/')
 parser.add_argument('--main_gpu', nargs='+', type=int, default=[], help='List of GPUs to use: [0,1]')
 
 # Set to zero if debuging
@@ -174,7 +174,7 @@ end = torch.cuda.Event(enable_timing=True)
 psf_shape = 2*[argsModel.img_size]
 if currArgs.deconv_iterations > 0:
     n_split = 20
-    OTF,psf_shape = load_PSF_OTF(currArgs.psf_file, output_shape, n_depths=args.deconv_n_depths, n_split=n_split)
+    OTF,psf_shape = load_PSF_OTF(currArgs.psf_file, output_shape, n_depths=args.deconv_n_depths, n_split=n_split, lenslet_centers_file_out="")
 
 
 
@@ -187,7 +187,7 @@ if currArgs.deconv_iterations > 0:
 tmp = 3
 if args.SD_iterations > 0:
     tmp = 5
-all_images = np.zeros((tmp, args.n_simulations,) + tuple(psf_shape), 'float16')
+all_images = np.zeros((tmp, args.n_simulations*len(args.temporal_shifts)) + tuple(psf_shape), 'float16')
 
 # Compute images
 with torch.no_grad():
@@ -201,10 +201,11 @@ with torch.no_grad():
         
         # fetch current pair
         curr_img_stack, local_volumes, voltages = dataset.__getitem__(curr_index)
+        raw_image_stack = curr_img_stack[...,0].clone() 
         curr_img_stack = curr_img_stack.unsqueeze(0)
 
         curr_img_stack = curr_img_stack.float()
-        curr_img_stack = curr_img_stack / curr_img_stack.max() * 3000.0
+        # curr_img_stack = curr_img_stack / curr_img_stack.max() * 3000.0
         curr_img_stack = curr_img_stack.half()
 
         curr_img_stack = curr_img_stack.to(device)
@@ -307,9 +308,10 @@ with torch.no_grad():
         
 
         # Store current images
-        all_images[0,nSimul,:,:] = curr_img_stack[0,args.frame_to_grab,...].cpu().numpy().astype(np.float16)
-        all_images[1,nSimul,:,:] = dense_part[0,args.frame_to_grab,...].cpu().numpy().astype(np.float16)
-        all_images[2,nSimul,:,:] = sparse_part[0,args.frame_to_grab,...].cpu().numpy().astype(np.float16)
+        curr_img_ix = nSimul * len(args.temporal_shifts)
+        all_images[0,curr_img_ix:curr_img_ix+len(args.temporal_shifts),...] = raw_image_stack.cpu().numpy().astype(np.float16)
+        all_images[1,curr_img_ix:curr_img_ix+len(args.temporal_shifts),...] = dense_part.cpu().numpy().astype(np.float16)
+        all_images[2,curr_img_ix:curr_img_ix+len(args.temporal_shifts),...] = sparse_part.cpu().numpy().astype(np.float16)
 
               
 
@@ -318,7 +320,7 @@ with torch.no_grad():
         # Store images and log them to tensorboard
         img_labels = ['input','dense_SLNet','sparse_SLNet','dense_SL','sparse_SL']
         for nImg in range(all_images.shape[0]):
-            img = tv.utils.make_grid(rescale_img(torch.from_numpy(all_images[nImg,nSimul,...]).float().unsqueeze(0).unsqueeze(0).cpu().detach()), normalize=True, scale_each=False)
+            img = tv.utils.make_grid(rescale_img(torch.from_numpy(all_images[nImg,args.frame_to_grab+nSimul*len(args.temporal_shifts),...]).float().unsqueeze(0).unsqueeze(0).cpu().detach()), normalize=True, scale_each=False)
             writer.add_image(img_labels[nImg],img, nSimul)
         
         if "proj_net" in locals():
@@ -328,9 +330,9 @@ with torch.no_grad():
         writer.add_scalar('times/Net', end_time, nSimul)
         if args.SD_iterations>0:
             writer.add_scalar('times/SL', end_time_SL, nSimul)
-            writer.add_scalar('times/deconv_SL', end_time_deconv_SL, nSimul)
 
         if args.deconv_iterations>0:
+            writer.add_scalar('times/deconv_SL', end_time_deconv_SL, nSimul)
             writer.add_scalar('times/deconv_SLNet', end_time_deconv_net, nSimul)
         
 img_labels = [  'XLFM_image_stack.tif',
@@ -349,6 +351,7 @@ if args.deconv_iterations>0:
     writer.add_scalar('mean/time_deconv', end_time_deconv_net)
 if args.SD_iterations>0:
     writer.add_scalar('mean/time_SL', mean_time_SL)
+if args.deconv_iterations>0:
     writer.add_scalar('mean/time_deconv_SL', end_time_deconv_SL)
 writer.add_scalar('mean/min_time', min_time)
 
