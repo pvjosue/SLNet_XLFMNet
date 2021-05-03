@@ -41,7 +41,7 @@ parser.add_argument('--checkpoint', nargs='?', default= "")#runs_dir + 'paper/ex
 parser.add_argument('--checkpoint_XLFMNet', nargs='?', default= "")# runs_dir + '/post_paper/unsupervised_3D/2021_01_26__17:25:290_gpu__LL_regL1_noBias_weightXavier_L1.0_unsup_oldFFT_singleGroupRepro/model_')
 parser.add_argument('--checkpoint_SLNet', nargs='?', default= '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/model_200')
 
-parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,10,1)))
+parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,20,1)))
 parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(10,20,1)))
 parser.add_argument('--batch_size', type=int, default=2)
 parser.add_argument('--max_epochs', type=int, default=501)
@@ -55,7 +55,7 @@ parser.add_argument('--use_random_shifts', nargs='+', type=int, default=0, help=
 parser.add_argument('--add_noise', type=int, default=0, help='Apply noise to images? 0 or 1')
 parser.add_argument('--signal_power_max', type=float, default=30**2, help='Max signal value to control signal to noise ratio when applyting noise.')
 parser.add_argument('--signal_power_min', type=float, default=60**2, help='Min signal value to control signal to noise ratio when applyting noise.')
-parser.add_argument('--norm_type', type=float, default=2, help='Normalization type, see the normalize_type function for more info.')
+parser.add_argument('--norm_type', type=float, default=1, help='Normalization type, see the normalize_type function for more info.')
 parser.add_argument('--dark_current', type=float, default=106, help='Dark current value of camera.')
 parser.add_argument('--dark_current_sparse', type=float, default=0, help='Dark current value of camera.')
 
@@ -190,7 +190,7 @@ trainable_params = [{'params': net.deconv.parameters()}]
 params = sum([np.prod(p.size()) for p in net.parameters()])
 
 # Normalization statistics
-stats = {'norm_type':args.norm_type, 'mean_imgs':mean_imgs, 'std_images':std_images, 'max_images':max_images,
+stats = {'norm_type':args.norm_type, 'norm_type_img':args.norm_type, 'mean_imgs':mean_imgs, 'std_images':std_images, 'max_images':max_images,
         'mean_vols':mean_vols, 'std_vols':std_vols, 'max_vols':max_volumes}
 
 
@@ -221,10 +221,10 @@ if len(args.checkpoint_XLFMNet)>0:
 
 if len(args.checkpoint_SLNet)>0 and dataset.n_frames>1:
     net.tempConv.load_state_dict(checkpoint_SL['model_state_dict'])
-    args.norm_type = checkpoint_SL['args'].norm_type
     stats_SLNet = checkpoint_SL['statistics']
-    stats = {'norm_type':args.norm_type, 'mean_imgs':stats_SLNet[0], 'std_images':stats_SLNet[1], 'max_images':stats['max_images'],
-        'mean_vols':stats_SLNet[2], 'std_vols':stats_SLNet[3], 'max_vols':stats['max_vols']}
+    stats['norm_type_img'] = checkpoint_SL['args'].norm_type
+    stats['mean_imgs'] = stats_SLNet[0]
+    stats['std_images'] = stats_SLNet[1]
 else:
     net.tempConv = None
 
@@ -290,7 +290,7 @@ for epoch in range(start_epoch, args.max_epochs):
         if curr_train_stage=='val' or curr_train_stage=='test':
             if epoch%args.eval_every!=0:
                 continue
-            # net.eval()
+            net.eval()
             torch.set_grad_enabled(False)
 
 
@@ -346,7 +346,8 @@ for epoch in range(start_epoch, args.max_epochs):
 
             # Images are already normalized from mainCreateDataset.py
             # curr_img_stack, local_volumes = normalize_type(curr_img_stack, local_volumes, args.norm_type, mean_imgs, std_images, mean_vols, std_vols, max_images, max_volumes)
-            curr_img_stack, local_volumes = normalize_type(curr_img_stack, local_volumes, stats['norm_type'], stats['mean_imgs'], stats['std_images'], stats['mean_vols'], stats['std_vols'], stats['max_images'], stats['max_vols'])
+            _, local_volumes = normalize_type(curr_img_stack, local_volumes, stats['norm_type'], stats['mean_imgs'], stats['std_images'], stats['mean_vols'], stats['std_vols'], stats['max_images'], stats['max_vols'])
+            curr_img_stack, _ = normalize_type(curr_img_stack, local_volumes, stats['norm_type_img'], stats['mean_imgs'], stats['std_images'], stats['mean_vols'], stats['std_vols'], stats['max_images'], stats['max_vols'])
                 
             # curr_img_sparse, _ = normalize_type(curr_img_sparse, local_volumes, args.norm_type, mean_imgs_sparse, std_images_sparse, mean_vols, std_vols, max_images, max_volumes)
             
@@ -433,6 +434,9 @@ for epoch in range(start_epoch, args.max_epochs):
         mean_repro /= curr_loader_len
         mean_repro_ssim /= curr_loader_len
 
+        # if epoch%args.eval_every==0:
+        #     plt.imshow(volume_2_projections(prediction.permute(0,2,3,1).unsqueeze(1))[0,0,...].float().detach().cpu().numpy())
+        #     plt.show()
         if epoch%args.eval_every==0:
             # plot_param_grads(writer, net, epoch, curr_train_stage+'_')
 

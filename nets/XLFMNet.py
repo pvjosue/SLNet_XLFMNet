@@ -40,11 +40,11 @@ class XLFMNet(nn.Module):
         if self.n_frames!= 1 and self.tempConv is not None:
             D = self.tempConv(input)
             sparse_part = F.relu(input.detach() - D)
-            if len(stats)>0:
-                sparse_part, _ = normalize_type(sparse_part, torch.zeros([1]), stats['norm_type'], stats['mean_imgs'], stats['std_images'], 0, 1, stats['max_images'], 10, inverse=True)
-                D, _ = normalize_type(D, torch.zeros([1]), stats['norm_type'], stats['mean_imgs'], stats['std_images'], 0, 1, stats['max_images'], 10, inverse=True)
-                input, _ = normalize_type(input, torch.zeros([1]), stats['norm_type'], stats['mean_imgs'], stats['std_images'], 0, 1, stats['max_images'], 10, inverse=True)
-                sparse_part = F.relu(input-D.detach())
+            # if len(stats)>0:
+                # sparse_part, _ = normalize_type(sparse_part, torch.zeros([1]), stats['norm_type'], stats['mean_imgs'], stats['std_images'], 0, 1, stats['max_images'], 10, inverse=True)
+                # D, _ = normalize_type(D, torch.zeros([1]), stats['norm_type'], stats['mean_imgs'], stats['std_images'], 0, 1, stats['max_images'], 10, inverse=True)
+                # input, _ = normalize_type(input, torch.zeros([1]), stats['norm_type'], stats['mean_imgs'], stats['std_images'], 0, 1, stats['max_images'], 10, inverse=True)
+                # sparse_part = F.relu(input-D.detach())
         else:
             sparse_part = input
         intermediate_result = self.dataset.extract_views(sparse_part[:,0,...].unsqueeze(1), self.dataset.lenslet_coords, self.dataset.subimage_shape)[:,0,...]
