@@ -36,11 +36,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--data_folder', nargs='?', default= data_dir + "/XLFM_real_fish/" + filename, help='Input images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
 parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt")
 parser.add_argument('--files_to_store', nargs='+', default=[], help='Relative paths of files to store in a zip when running this script, for backup.')
-parser.add_argument('--prefix', nargs='?', default= "3FramesStored", help='Prefix string for the output folder.')
-parser.add_argument('--checkpoint', nargs='?', default= "/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/model_200", help='File path of checkpoint of SLNet.')
+parser.add_argument('--prefix', nargs='?', default= "50It_180Depths", help='Prefix string for the output folder.')
+parser.add_argument('--checkpoint', nargs='?', default= "/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_03__14:40:240_gpu__Final/model_500", help='File path of checkpoint of SLNet.')
 parser.add_argument('--psf_file', nargs='?', default= main_folder + "/data/20200730_XLFM_beads_images/20200730_XLFM_PSF_2.5um/PSF_2.5um_processed.mat", help='.mat matlab file with PSF stack, used for deconvolution.')
 # Images related arguments
-parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,120,1)), help='Indeces of images to train on.')
+parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,121,1)), help='Indeces of images to train on.')
 parser.add_argument('--n_simulations', type=int, default=20, help='Number of samples to generate.')
 # Noise arguments
 parser.add_argument('--add_noise', type=int, default=0, help='Apply noise to images? 0 or 1')
@@ -54,14 +54,15 @@ parser.add_argument('--temporal_shifts', nargs='+', type=int, default=[0,49,99],
 parser.add_argument('--SD_iterations', type=int, default=10, help='Number of iterations for Sparse Decomposition, 0 to disable.')
 parser.add_argument('--frame_to_grab', type=int, default=0, help='Which frame to show from the sparse decomposition?')
 # 3D deconvolution arguments
-parser.add_argument('--deconv_iterations', type=int, default=0, help='Number of iterations for 3D deconvolution, for GT volume generation.')
-parser.add_argument('--deconv_n_depths', type=int, default=120, help='Number of depths to create in 3D deconvolution.')
+parser.add_argument('--deconv_iterations', type=int, default=50, help='Number of iterations for 3D deconvolution, for GT volume generation.')
+parser.add_argument('--deconv_n_depths', type=int, default=180, help='Number of depths to create in 3D deconvolution.')
+parser.add_argument('--n_depths', type=int, default=120, help='Number of depths to create in 3D deconvolution.')
 parser.add_argument('--deconv_limit', type=float, default=10000, help='Maximum intensity allowed from doconvolution.')
-parser.add_argument('--deconv_gpu', type=int, default=-1, help='GPU to use for deconvolution, -1 to use CPU, this is very memory intensive.')
+parser.add_argument('--deconv_gpu', type=int, default=0, help='GPU to use for deconvolution, -1 to use CPU, this is very memory intensive.')    
 
-parser.add_argument('--output_path', nargs='?', default=runs_dir + '/camera_ready_github/2021_03_26__11:54:000_gpu__/')
+parser.add_argument('--output_path', nargs='?', default='/space/vizcainj/shared/datasets/XLFM/camera_ready/')
 # parser.add_argument('--output_path', nargs='?', default=runs_dir + '/garbage/')
-parser.add_argument('--main_gpu', nargs='+', type=int, default=[], help='List of GPUs to use: [0,1]')
+parser.add_argument('--main_gpu', nargs='+', type=int, default=[1], help='List of GPUs to use: [0,1]')
 
 # Set to zero if debuging
 n_threads = 0
@@ -109,9 +110,9 @@ std_vols = std_vols.to(device)
 n_images = len(dataset)
 
 # Get volume desired shape
-output_shape = argsModel.output_shape + [args.deconv_n_depths]
+output_shape = argsModel.output_shape + [args.n_depths]
 if len(output_shape)==2:
-    output_shape = argsModel.output_shape + [args.deconv_n_depths]
+    output_shape = argsModel.output_shape + [args.n_depths]
 
 # Creating data indices for training and validation splits:
 dataset_size = len(dataset)
@@ -120,7 +121,7 @@ dataset_size = len(dataset)
 train_sampler = SequentialSampler(dataset)
 
 # Create output directory
-output_dir = args.output_path + '/' + datetime.now().strftime('%Y_%m_%d__%H:%M:%S') + '_' + str(args.deconv_n_depths) + 'nD__' + str(args.n_simulations) + '_F__' + str(len(args.temporal_shifts))+'timeF__' + str(args.deconv_limit) + '_DecLimit__' + args.prefix
+output_dir = args.output_path + '/' + datetime.now().strftime('%Y_%m_%d__%H:%M:%S') + '_' + str(args.n_depths) + 'nD__' + str(args.n_simulations) + '_F__' + str(len(args.temporal_shifts))+'timeF__' + str(args.deconv_limit) + '_DecLimit__' + args.prefix
 print('Output directory: ' + output_dir)
 # Create directories
 # XLFM_image: Raw XLFM image
@@ -200,7 +201,7 @@ with torch.no_grad():
         curr_index = nSimul%n_images
         
         # fetch current pair
-        curr_img_stack, local_volumes, voltages = dataset.__getitem__(curr_index)
+        curr_img_stack, local_volumes = dataset.__getitem__(curr_index)
         raw_image_stack = curr_img_stack[...,0].clone() 
         curr_img_stack = curr_img_stack.unsqueeze(0)
 
@@ -260,6 +261,7 @@ with torch.no_grad():
             end.record()
             torch.cuda.synchronize()
             end_time_deconv_net = start.elapsed_time(end) / curr_img_stack.shape[0]
+            deconv_net = deconv_net[:, currArgs.deconv_n_depths//2-currArgs.n_depths//2 : currArgs.deconv_n_depths//2+currArgs.n_depths//2,...]
             print(str(deconv_net.max()))
             imsave(output_dir + '/XLFM_stack_S/XLFM_stack_'+ "%03d" % nSimul + '.tif', deconv_net.cpu().numpy())
 
@@ -280,6 +282,8 @@ with torch.no_grad():
                 end.record()
                 torch.cuda.synchronize()
                 end_time_deconv_SL = start.elapsed_time(end) / curr_img_stack.shape[0]
+
+                deconv_SL = deconv_SL[:, currArgs.deconv_n_depths//2-currArgs.n_depths//2 : currArgs.deconv_n_depths//2+currArgs.n_depths//2,...]
 
                 imsave(output_dir + '/XLFM_stack_S_SL/XLFM_stack_'+ "%03d" % nSimul + '.tif', deconv_SL.cpu().numpy())
             # set to true for plotting
