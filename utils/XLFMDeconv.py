@@ -26,7 +26,8 @@ def XLFMDeconv(OTF, img, nIt, ObjSize=[512,512], PSFShape=[2160,2160], ROIsize=[
         proj = volume_2_projections(volOut.permute(0,2,3,1).unsqueeze(1)).cpu()
         return volOut,proj,img,[]
 
-    paddedOTFShape = torch.tensor([ROIsize[i] + PSFShape[i] - 1 for i in range(2)])
+    # paddedOTFShape = [ROIsize[i]//2 - 1 for i in range(2)]
+    # OTF = F.pad(OTF, 2*paddedOTFShape)
     PSFShape = torch.tensor(PSFShape)
     # device = OTF.device
 

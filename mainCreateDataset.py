@@ -29,15 +29,20 @@ main_folder = "/u/home/vizcainj/code/XLFMNet/"
 runs_dir = "/space/vizcainj/shared/XLFMNet/runs/"
 data_dir = "/space/vizcainj/shared/datasets/XLFM/"
 # Real image 
-filename = "20200903_NLS_GCaMP6s_XLFM_confocal10x/XLFM/all_images"
+# filename = "20200903_NLS_GCaMP6s_XLFM_confocal10x/XLFM/all_images"
+filename = "20201111_test_fish/fish2_new"
+# filename = "20201111_test_fish/fish3_new5outScaleS_Jan19"
+
+check = '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:55:200_gpu__Fish2/'
+
 
 # Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_folder', nargs='?', default= data_dir + "/XLFM_real_fish/" + filename, help='Input images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
 parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt")
 parser.add_argument('--files_to_store', nargs='+', default=[], help='Relative paths of files to store in a zip when running this script, for backup.')
-parser.add_argument('--prefix', nargs='?', default= "50It_180Depths", help='Prefix string for the output folder.')
-parser.add_argument('--checkpoint', nargs='?', default= "/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_03__14:40:240_gpu__Final/model_500", help='File path of checkpoint of SLNet.')
+parser.add_argument('--prefix', nargs='?', default= "fish3_new5outScaleS_Jan19", help='Prefix string for the output folder.')
+parser.add_argument('--checkpoint', nargs='?', default= check + "/model_300", help='File path of checkpoint of SLNet.')
 parser.add_argument('--psf_file', nargs='?', default= main_folder + "/data/20200730_XLFM_beads_images/20200730_XLFM_PSF_2.5um/PSF_2.5um_processed.mat", help='.mat matlab file with PSF stack, used for deconvolution.')
 # Images related arguments
 parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,121,1)), help='Indeces of images to train on.')
@@ -96,7 +101,7 @@ if len(args.checkpoint)>0:
 # Get images
 dataset = XLFMDatasetFull(args.data_folder, args.lenslet_file, argsModel.subimage_shape, img_shape=2*[argsModel.img_size],
             images_to_use=args.images_to_use, divisor=1, isTiff=True, n_frames_net=argsModel.n_frames, 
-            load_all=True, load_sparse=True, load_vols=False, temporal_shifts=args.temporal_shifts, eval_video=True)
+            load_all=True, load_sparse=False, load_vols=False, temporal_shifts=args.temporal_shifts, eval_video=True)
 
 # Get normalization values 
 max_images,max_images_sparse,max_volumes = dataset.get_max()
@@ -202,7 +207,6 @@ with torch.no_grad():
         
         # fetch current pair
         curr_img_stack, local_volumes = dataset.__getitem__(curr_index)
-        raw_image_stack = curr_img_stack[...,0].clone() 
         curr_img_stack = curr_img_stack.unsqueeze(0)
 
         curr_img_stack = curr_img_stack.float()
@@ -211,9 +215,13 @@ with torch.no_grad():
 
         curr_img_stack = curr_img_stack.to(device)
 
-        assert len(curr_img_stack.shape)>=5, "If sparse is used curr_img_stack should contain both images, dense and sparse stacked in the last dim."
-        curr_img_sparse = curr_img_stack[...,-1].clone().to(device) 
-        curr_img_stack = curr_img_stack[...,0].clone() 
+        if len(curr_img_stack.shape)>=5:
+        # assert len(curr_img_stack.shape)>=5, "If sparse is used curr_img_stack should contain both images, dense and sparse stacked in the last dim."
+            curr_img_sparse = curr_img_stack[...,-1].clone().to(device) 
+            curr_img_stack = curr_img_stack[...,0].clone() 
+        else:
+            curr_img_sparse = curr_img_stack.clone()
+        raw_image_stack = curr_img_stack.clone() 
 
         # Remove dark current from images
         curr_img_stack -= args.dark_current

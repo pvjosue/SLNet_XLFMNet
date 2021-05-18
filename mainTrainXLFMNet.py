@@ -26,7 +26,15 @@ data_dir = "/space/vizcainj/shared/datasets/XLFM/"
 
 filename = "/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/2021_03_26__13:55:15_120nD__20_F__3timeF__10000_DecLimit__2"
 filename = "/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/2021_04_30__14:24:27_120nD__20_F__3timeF__10000_DecLimit__3FramesStored"
+filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_03__16:06:25_120nD__20_F__3timeF__10000_DecLimit__3FramesStored"
+filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/old_deconv"
+filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_04__16:51:49_120nD__20_F__3timeF__10000_DecLimit__3FramesStored_180Depths"
+filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready//2021_05_05__15:38:59_120nD__20_F__3timeF__10000_DecLimit__50It_180Depths"
+filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_12__17:29:50_120nD__20_F__3timeF__10000_DecLimit__fish3_new5outScaleS_Jan19"
+filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_17__17:41:03_120nD__20_F__3timeF__10000_DecLimit__fish3_new5outScaleS_Jan19"
 test_file_name = filename
+
+check = '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:55:200_gpu__Fish2/'
 
 # Arguments
 parser = argparse.ArgumentParser()
@@ -36,13 +44,13 @@ parser.add_argument('--data_folder_test', nargs='?', default=test_file_name)
 parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt")
 parser.add_argument('--files_to_store', nargs='+', default=['mainTrainXLFMNet.py','mainTrainSLNet.py','mainCreateDataset.py','utils/XLFMDataset.py','utils/misc_utils.py','nets/extra_nets.py','nets/XLFMNet.py','nets/SLNet.py'])
 parser.add_argument('--psf_file', nargs='?', default= main_folder + "/data/20200730_XLFM_beads_images/20200730_XLFM_PSF_2.5um/PSF_2.5um_processed.mat")
-parser.add_argument('--prefix', nargs='?', default= "3D_deconv")
+parser.add_argument('--prefix', nargs='?', default= "50itDeconv_fish2_new")
 parser.add_argument('--checkpoint', nargs='?', default= "")#runs_dir + 'paper/exp3_SDLFM_3Frame/individual_training/both/2020_11_24__09:24:500_gpu__Aug_unetD2_wf5___1e-4_lessNoise_realImgs_Shuffle_realPower_imgLoss0_MaxPool_DO25_batch8_50imgs1036job/model_')
 parser.add_argument('--checkpoint_XLFMNet', nargs='?', default= "")# runs_dir + '/post_paper/unsupervised_3D/2021_01_26__17:25:290_gpu__LL_regL1_noBias_weightXavier_L1.0_unsup_oldFFT_singleGroupRepro/model_')
-parser.add_argument('--checkpoint_SLNet', nargs='?', default= '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/model_200')
+parser.add_argument('--checkpoint_SLNet', nargs='?', default= check + '/model_300')
 
-parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,20,1)))
-parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(10,20,1)))
+parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,18,1)))
+parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(18,20,1)))
 parser.add_argument('--batch_size', type=int, default=2)
 parser.add_argument('--max_epochs', type=int, default=501)
 parser.add_argument('--validation_split', type=float, default=0.1)
@@ -183,8 +191,8 @@ net = XLFMNet(n_lenslets, args.output_shape, n_temporal_frames=dataset.n_frames,
 net.apply(init_weights)
 
 # Trainable parameters
-mean_imgs = mean_imgs_sparse
-std_images = std_images_sparse
+# mean_imgs = mean_imgs_sparse
+# std_images = std_images_sparse
 trainable_params = [{'params': net.deconv.parameters()}]
 
 params = sum([np.prod(p.size()) for p in net.parameters()])
@@ -302,7 +310,7 @@ for epoch in range(start_epoch, args.max_epochs):
         mean_repro = 0
         mean_repro_ssim = 0
         # Training
-        for ix,(curr_img_stack, local_volumes, voltages) in enumerate(curr_loader):
+        for ix,(curr_img_stack, local_volumes) in enumerate(curr_loader):
 
             # If empty or nan in volumes, don't use these for training 
             if curr_img_stack.float().sum()==0 or torch.isnan(curr_img_stack.float().max()):
@@ -497,6 +505,7 @@ for epoch in range(start_epoch, args.max_epochs):
             torch.save({
             'epoch': epoch,
             'args' : args,
+            'args_SLNet' : argsSLNet,
             'statistics' : stats,
             'model_state_dict': net_get_params(net).state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
@@ -507,6 +516,7 @@ for epoch in range(start_epoch, args.max_epochs):
             torch.save({
             'epoch': epoch,
             'args' : args,
+            'args_SLNet' : argsSLNet,
             'statistics' : stats,
             'model_state_dict': net_get_params(net).state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),

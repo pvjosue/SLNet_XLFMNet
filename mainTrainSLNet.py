@@ -25,30 +25,36 @@ from utils.misc_utils import *
 
 runs_dir = "runs/"
 data_dir = "XLFM/"
-
+main_folder = "/u/home/vizcainj/code/XLFMNet/"
+runs_dir = "/space/vizcainj/shared/XLFMNet/runs/"
+data_dir = "/space/vizcainj/shared/datasets/XLFM/"
+# Real image 
+filename = "20200903_NLS_GCaMP6s_XLFM_confocal10x/XLFM/all_images"
+filename = "20201111_test_fish/fish2_new"
 
 # Arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_folder', nargs='?', default= data_dir + "/train_dataset/", help='Input training images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
-parser.add_argument('--data_folder_test', nargs='?', default= data_dir + "/test_dataset/", help='Input testing image path')
+parser.add_argument('--data_folder', nargs='?', default= data_dir + "/XLFM_real_fish/" + filename, help='Input training images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
+parser.add_argument('--data_folder_test', nargs='?', default= data_dir + "/XLFM_real_fish/" + filename, help='Input testing image path')
 parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_coords.txt", help='Text file with the lenslet coordinates pairs x y "\n"')
 
 parser.add_argument('--files_to_store', nargs='+', default=[], help='Relative paths of files to store in a zip when running this script, for backup.')
-parser.add_argument('--prefix', nargs='?', default= "", help='Prefix string for the output folder.')
+parser.add_argument('--prefix', nargs='?', default= "Fish2", help='Prefix string for the output folder.')
 parser.add_argument('--checkpoint', nargs='?', default= "", help='File path of checkpoint of previous run.')
 # Images related arguments
 parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,140,1)), help='Indeces of images to train on.')
-parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(0,36,1)), help='Indeces of images to test on.')
+parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(0,120,1)), help='Indeces of images to test on.')
 parser.add_argument('--lenslet_crop_size', type=int, default=512, help='Side size of the microlens image.')
 parser.add_argument('--img_size', type=int, default=2160, help='Side size of input image, square prefered.')
 # Training arguments
 parser.add_argument('--batch_size', type=int, default=8, help='Training batch size.') 
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='Training learning rate.')
-parser.add_argument('--max_epochs', type=int, default=201, help='Training epochs to run.')
+parser.add_argument('--max_epochs', type=int, default=1001, help='Training epochs to run.')
 parser.add_argument('--validation_split', type=float, default=0.1, help='Which part to use for validation 0 to 1.')
 parser.add_argument('--eval_every', type=int, default=10, help='How often to evaluate the testing/validaton set.')
 parser.add_argument('--shuffle_dataset', type=int, default=1, help='Radomize training images 0 or 1')
 parser.add_argument('--use_bias', type=int, default=0, help='Use bias during training? 0 or 1')
+parser.add_argument('--plot_images', type=int, default=0, help='Plot results with matplotlib?')
 # Noise arguments
 parser.add_argument('--add_noise', type=int, default=0, help='Apply noise to images? 0 or 1')
 parser.add_argument('--signal_power_max', type=float, default=30**2, help='Max signal value to control signal to noise ratio when applyting noise.')
@@ -107,12 +113,12 @@ save_folder = args.output_path + datetime.now().strftime('%Y_%m_%d__%H:%M:%S') +
 args.subimage_shape = 2*[args.lenslet_crop_size]
 args.output_shape = 2*[args.lenslet_crop_size]
 dataset = XLFMDatasetFull(args.data_folder, args.lenslet_file, args.subimage_shape, img_shape=2*[args.img_size],
-            images_to_use=args.images_to_use, divisor=1, isTiff=True, n_frames_net=args.n_frames,
+            images_to_use=args.images_to_use, divisor=1, isTiff=True, n_frames_net=args.n_frames, eval_video=True,
             load_all=True, load_sparse=False, load_vols=False, temporal_shifts=args.temporal_shifts, use_random_shifts=args.use_random_shifts)
 
 
 dataset_test = XLFMDatasetFull(args.data_folder_test, args.lenslet_file, args.subimage_shape, 2*[args.img_size],  
-            images_to_use=args.images_to_use_test, divisor=1, isTiff=True, n_frames_net=args.n_frames, 
+            images_to_use=args.images_to_use_test, divisor=1, isTiff=True, n_frames_net=args.n_frames, eval_video=True,
             load_all=True, load_vols=False, load_sparse=False)
 
 # Get normalization values 
@@ -229,7 +235,7 @@ for epoch in range(start_epoch, args.max_epochs):
         perf_metrics['L1_SLNet'] = []
 
         # Training
-        for ix,(curr_img_stack, _, filenames) in enumerate(curr_loader):
+        for ix,(curr_img_stack, _) in enumerate(curr_loader):
             curr_img_stack = curr_img_stack.to(device)
             
             # if GT sparse images are not loaded, then let's replicate the input images to avoid errors
@@ -315,17 +321,21 @@ for epoch in range(start_epoch, args.max_epochs):
                 sparse_crop = F.relu(curr_img_crop - reconstructed_dense)
                 
                 
-                if ix==0:
+                if ix==0 and args.plot_images:
                     plt.clf()
                     for n in range(0,3):
                         plt.subplot(3,4,4*n+1)
                         plt.imshow(curr_img_crop[0,n,...].detach().cpu().float().numpy())
+                        plt.title('Input')
                         plt.subplot(3,4,4*n+2)
                         plt.imshow(dense_crop[0,n,...].detach().cpu().float().numpy())
+                        plt.title('Dense prediction')
                         plt.subplot(3,4,4*n+3)
                         plt.imshow(sparse_crop[0,n,...].detach().cpu().float().numpy())
+                        plt.title('Sparse prediction')
                         plt.subplot(3,4,4*n+4)
                         plt.imshow(Y[0,n,...].detach().cpu().float().numpy())
+                        plt.title('Y')
                     plt.pause(0.1)       
                     plt.draw()
 

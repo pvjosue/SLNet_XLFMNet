@@ -221,10 +221,10 @@ class XLFMDatasetFull(data.Dataset):
         # nDims = list(range(2,len(views_out.shape)))
         # views_out = views_out.permute(1,0,*nDims)
         if self.load_vols is False:
-            return views_out,0,0
+            return views_out,0
         vol_out = self.vols[index,...]
         
-        return views_out,vol_out, self.all_files[index]
+        return views_out,vol_out
 
     
     def get_voltages_from_volume(self, vol, neuron):

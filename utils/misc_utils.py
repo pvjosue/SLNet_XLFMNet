@@ -137,7 +137,7 @@ def fft_conv_split(A, B, psf_shape, n_split, B_precomputed=False, device = "cpu"
     depths = list(range(n_depths))
     depths = [depths[i:i + split_conv] for i in range(0, n_depths, split_conv)]
 
-    fullSize = psf_shape # torch.tensor(A.shape[2:]) + psf_shape
+    fullSize = torch.tensor(A.shape[2:]) + psf_shape
     
     crop_pad = [(psf_shape[i] - fullSize[i])//2 for i in range(0,2)]
     crop_pad = (crop_pad[1], (psf_shape[-1]- fullSize[-1])-crop_pad[1], crop_pad[0], (psf_shape[-2] - fullSize[-2])-crop_pad[0])
@@ -286,7 +286,7 @@ def load_PSF_OTF(filename, vol_size, n_split=20, n_depths=120, downS=1, device="
         psfMaxCoeffs = torch.amax(psfIn, dim=[0,2,3])
 
     psf_shape = torch.tensor(psfIn.shape[2:])
-    vol = torch.rand(1,vol_size[2], vol_size[0], vol_size[1], device=device)
+    vol = torch.rand(1,psfIn.shape[1], vol_size[0], vol_size[1], device=device)
     img, OTF = fft_conv_split(vol, psfIn.float().detach().to(device), psf_shape, n_split=n_split, device=device)
     
     OTF = OTF.detach()
