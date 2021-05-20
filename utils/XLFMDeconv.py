@@ -32,8 +32,8 @@ def XLFMDeconv(OTF, img, nIt, ObjSize=[512,512], PSFShape=[2160,2160], ROIsize=[
     # device = OTF.device
 
     # Compute transposed OTF
-    OTFt = OTF.clone()
-    OTFt = torch.real(OTFt) - 1j * torch.imag(OTFt)
+    OTFt = OTF[...,1].clone()
+    OTF = OTF[...,0].clone()
 
     padSize = 2*[(OTF.shape[2] - ObjSize[0])//2] + 2*[(OTF.shape[2] - ObjSize[1])//2]
     padSizeImg = 2*[(OTF.shape[2] - img.shape[2])//2] + 2*[(OTF.shape[2] - img.shape[3])//2]
@@ -64,9 +64,13 @@ def XLFMDeconv(OTF, img, nIt, ObjSize=[512,512], PSFShape=[2160,2160], ROIsize=[
             ObjTemp = F.pad(ObjRecon, padSize)
             for jj in range(0,nDepths, nSplitFourier):
                 curr_depths = list(range(jj,jj+nSplitFourier))
-                planeOTF = OTF[:,curr_depths,...].unsqueeze(1).to(device)
-                planeObjFFT = torch.fft.rfft2(ObjTemp[:,curr_depths,...].unsqueeze(1)).to(device)
-                ImgEst += F.relu(batch_fftshift2d_real(torch.fft.irfft2(planeObjFFT * planeOTF))).sum(2)
+                planeOTF = OTF[:,curr_depths,...].to(device)
+                currObjPlanes = ObjTemp[:,curr_depths,...]
+                if len(curr_depths)==1:
+                    planeOTF = planeOTF.unsqueeze(1)
+                    currObjPlanes = currObjPlanes.unsqueeze(1)
+                planeObjFFT = torch.fft.rfft2(currObjPlanes).to(device)
+                ImgEst += F.relu(batch_fftshift2d_real(torch.fft.irfft2(planeObjFFT * planeOTF))).sum(1).unsqueeze(1)
             
             # Compute error in forward image
             ImgEst[ImgEst<1e-6] = 0

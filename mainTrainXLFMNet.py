@@ -32,25 +32,26 @@ filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_04__16:51:
 filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready//2021_05_05__15:38:59_120nD__20_F__3timeF__10000_DecLimit__50It_180Depths"
 filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_12__17:29:50_120nD__20_F__3timeF__10000_DecLimit__fish3_new5outScaleS_Jan19"
 filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_17__17:41:03_120nD__20_F__3timeF__10000_DecLimit__fish3_new5outScaleS_Jan19"
-test_file_name = filename
+
 
 check = '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:55:200_gpu__Fish2/'
-
+filename = check + 'Dataset_2021_05_18__13:32:25_120nD__90nS__fish2_new'
+test_file_name = filename
+check = check + 'model_300'
 # Arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_folder', nargs='?', default= filename)#main_folder + "/data/20200730_XLFM_beads_images/Simulated_beads/" + filename + "/")
+parser.add_argument('--data_folder', nargs='?', default= filename)
 parser.add_argument('--data_folder_test', nargs='?', default=test_file_name)
-# parser.add_argument('--lenslet_file', nargs='?', default= "/u/home/vizcainj/datasets/XLFM/lenslet_coords.txt")
 parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt")
 parser.add_argument('--files_to_store', nargs='+', default=['mainTrainXLFMNet.py','mainTrainSLNet.py','mainCreateDataset.py','utils/XLFMDataset.py','utils/misc_utils.py','nets/extra_nets.py','nets/XLFMNet.py','nets/SLNet.py'])
 parser.add_argument('--psf_file', nargs='?', default= main_folder + "/data/20200730_XLFM_beads_images/20200730_XLFM_PSF_2.5um/PSF_2.5um_processed.mat")
 parser.add_argument('--prefix', nargs='?', default= "50itDeconv_fish2_new")
-parser.add_argument('--checkpoint', nargs='?', default= "")#runs_dir + 'paper/exp3_SDLFM_3Frame/individual_training/both/2020_11_24__09:24:500_gpu__Aug_unetD2_wf5___1e-4_lessNoise_realImgs_Shuffle_realPower_imgLoss0_MaxPool_DO25_batch8_50imgs1036job/model_')
-parser.add_argument('--checkpoint_XLFMNet', nargs='?', default= "")# runs_dir + '/post_paper/unsupervised_3D/2021_01_26__17:25:290_gpu__LL_regL1_noBias_weightXavier_L1.0_unsup_oldFFT_singleGroupRepro/model_')
-parser.add_argument('--checkpoint_SLNet', nargs='?', default= check + '/model_300')
+parser.add_argument('--checkpoint', nargs='?', default= "")
+parser.add_argument('--checkpoint_XLFMNet', nargs='?', default= "")
+parser.add_argument('--checkpoint_SLNet', nargs='?', default=check)
 
-parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,18,1)))
-parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(18,20,1)))
+parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,80,1)))
+parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(80,89,1)))
 parser.add_argument('--batch_size', type=int, default=2)
 parser.add_argument('--max_epochs', type=int, default=501)
 parser.add_argument('--validation_split', type=float, default=0.1)
@@ -74,9 +75,9 @@ parser.add_argument('--unet_depth', type=int, default=2)
 parser.add_argument('--unet_wf', type=int, default=7)
 parser.add_argument('--unet_drop_out', type=float, default=0)
 
-parser.add_argument('--output_path', nargs='?', default='/space/vizcainj/shared/XLFMNet/runs/camera_ready_github_Apr/')
-parser.add_argument('--main_gpu', nargs='+', type=int, default=[0])
-parser.add_argument('--gpu_repro', nargs='+', type=int, default=[])
+parser.add_argument('--output_path', nargs='?', default='')
+parser.add_argument('--main_gpu', nargs='+', type=int, default=[1])
+parser.add_argument('--gpu_repro', nargs='+', type=int, default=[2])
 parser.add_argument('--n_split', type=int, default=20)
 
 debug = False
@@ -114,9 +115,13 @@ if len(args.checkpoint_SLNet)>0:
     argsSLNet = checkpoint_SL['args']
     args.temporal_shifts = checkpoint_SL['args'].temporal_shifts
 
+# If there is no output_path specified, write with the dataset and SLNet training
+if len(args.output_path)==0:
+    head, tail = os.path.split(args.checkpoint_SLNet)
+    args.output_path = head
 # Get commit number 
 label = subprocess.check_output(["git", "describe", "--always"]).strip()
-save_folder = args.output_path + datetime.now().strftime('%Y_%m_%d__%H:%M:%S') + '__' + str(label) + '_commit__' + args.prefix
+save_folder = args.output_path + '/XLFMNet_train__' + datetime.now().strftime('%Y_%m_%d__%H:%M:%S') + '__' + str(label) + '_commit__' + args.prefix
 
 
 # Get size of the volume

@@ -63,7 +63,7 @@ def roll_n(X, axis, n):
     return torch.cat([back, front], axis)
 def batch_fftshift2d_real(x):
     out = x
-    for dim in range(1, len(out.size())):
+    for dim in range(2, len(out.size())):
         n_shift = x.size(dim)//2
         if x.size(dim) % 2 != 0:
             n_shift += 1  # for odd-sized images
@@ -274,7 +274,7 @@ def load_PSF(filename, n_depths=120):
     return psfIn
 
 def load_PSF_OTF(filename, vol_size, n_split=20, n_depths=120, downS=1, device="cpu",
-                 dark_current=106, calc_max=False, psfIn=None,
+                 dark_current=106, calc_max=False, psfIn=None, compute_transpose=False,
                  n_lenslets=29, lenslet_centers_file_out='lenslet_centers_python.txt'):
     # Load PSF
     if psfIn is None:
@@ -291,6 +291,9 @@ def load_PSF_OTF(filename, vol_size, n_split=20, n_depths=120, downS=1, device="
     
     OTF = OTF.detach()
 
+    if compute_transpose:
+        OTFt = torch.real(OTF) - 1j * torch.imag(OTF)
+        OTF = torch.cat((OTF.unsqueeze(-1), OTFt.unsqueeze(-1)), 4)
     if calc_max:
         return OTF, psf_shape, psfMaxCoeffs
     else:

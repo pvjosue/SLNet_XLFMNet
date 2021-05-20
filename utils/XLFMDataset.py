@@ -78,7 +78,7 @@ class XLFMDatasetFull(data.Dataset):
                 self.all_files = [sorted(glob.glob(vols_path))[images_to_use[i]] for i in range(self.n_images)]
 
             if self.load_sparse:
-                vols_path_sparse = data_path + '/XLFM_stack_S_SL/*.tif'
+                vols_path_sparse = data_path + '/XLFM_stack_S/*.tif'
             if load_vols:
                 self.all_files= [sorted(glob.glob(vols_path_sparse))[images_to_use[i]] for i in range(self.n_images)]
                 # read single volume
