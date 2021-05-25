@@ -106,3 +106,27 @@ def XLFMDeconv(OTF, img, nIt, ObjSize=[512,512], PSFShape=[2160,2160], ROIsize=[
                     break
     return ObjRecon,proj,ImgEst,losses
 
+
+def XLFM_forward_projection(OTF, volume, img_shape, is_padded=False, nSplitFourier=6):
+    ObjSize = volume.shape[-2:]
+    nDepths = volume.shape[1]
+    device = volume.device
+    # Compute transposed OTF
+    OTFt = OTF[...,1].clone()
+    OTF = OTF[...,0].clone()
+
+    ImgEst = torch.zeros(img_shape).to(device)
+    padSize = 2*[(OTF.shape[2] - ObjSize[0])//2] + 2*[(OTF.shape[2] - ObjSize[1])//2]
+
+    if not is_padded:
+        ObjTemp = F.pad(volume, padSize)
+    for jj in range(0,nDepths, nSplitFourier):
+        curr_depths = list(range(jj,jj+nSplitFourier))
+        planeOTF = OTF[:,curr_depths,...].to(device)
+        currObjPlanes = ObjTemp[:,curr_depths,...]
+        if len(curr_depths)==1:
+            planeOTF = planeOTF.unsqueeze(1)
+            currObjPlanes = currObjPlanes.unsqueeze(1)
+        planeObjFFT = torch.fft.rfft2(currObjPlanes).to(device)
+        ImgEst += F.relu(batch_fftshift2d_real(torch.fft.irfft2(planeObjFFT * planeOTF))).sum(1).unsqueeze(1)
+    return ImgEst

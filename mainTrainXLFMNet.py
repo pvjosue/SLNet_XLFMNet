@@ -35,9 +35,10 @@ filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_17__17:41:
 
 
 check = '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:55:200_gpu__Fish2/'
-filename = check + 'Dataset_2021_05_18__13:32:25_120nD__90nS__fish2_new'
-test_file_name = filename
+test_file_name = check + 'Dataset_2021_05_18__13:32:25_120nD__90nS__fish2_new'
 check = check + 'model_300'
+
+filename = '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:55:200_gpu__Fish2/Dataset_2021_05_21__11:50:23_120nD__50nS__fish2_new_Augmented/'
 # Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_folder', nargs='?', default= filename)
@@ -45,13 +46,13 @@ parser.add_argument('--data_folder_test', nargs='?', default=test_file_name)
 parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt")
 parser.add_argument('--files_to_store', nargs='+', default=['mainTrainXLFMNet.py','mainTrainSLNet.py','mainCreateDataset.py','utils/XLFMDataset.py','utils/misc_utils.py','nets/extra_nets.py','nets/XLFMNet.py','nets/SLNet.py'])
 parser.add_argument('--psf_file', nargs='?', default= main_folder + "/data/20200730_XLFM_beads_images/20200730_XLFM_PSF_2.5um/PSF_2.5um_processed.mat")
-parser.add_argument('--prefix', nargs='?', default= "50itDeconv_fish2_new")
+parser.add_argument('--prefix', nargs='?', default= "50itDeconv_fish2_new_augmented")
 parser.add_argument('--checkpoint', nargs='?', default= "")
 parser.add_argument('--checkpoint_XLFMNet', nargs='?', default= "")
 parser.add_argument('--checkpoint_SLNet', nargs='?', default=check)
 
-parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,80,1)))
-parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(80,89,1)))
+parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,50,1)))
+parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(0,10,1)))
 parser.add_argument('--batch_size', type=int, default=2)
 parser.add_argument('--max_epochs', type=int, default=501)
 parser.add_argument('--validation_split', type=float, default=0.1)
@@ -77,7 +78,7 @@ parser.add_argument('--unet_drop_out', type=float, default=0)
 
 parser.add_argument('--output_path', nargs='?', default='')
 parser.add_argument('--main_gpu', nargs='+', type=int, default=[1])
-parser.add_argument('--gpu_repro', nargs='+', type=int, default=[2])
+parser.add_argument('--gpu_repro', nargs='+', type=int, default=[])
 parser.add_argument('--n_split', type=int, default=20)
 
 debug = False

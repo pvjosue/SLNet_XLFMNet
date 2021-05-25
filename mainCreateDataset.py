@@ -39,20 +39,25 @@ check = '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:
 # Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_folder', nargs='?', default= data_dir + "/XLFM_real_fish/" + filename, help='Input images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
+parser.add_argument('--volume_raw_reference_path', nargs='?', default= '/u/home/vizcainj/datasets/XLFM/XLFM_real_fish/SDLFM/Deconvolved/11_11_2020__testset_fish2_new_SLdec_512_optim_1outScaleS/XLFM_stack/*tif', help='For augmentation the volumes must be computed, perhaps this volumes where arleady computed?. use: path + *tif')
+parser.add_argument('--volume_sparse_reference_path', nargs='?', default= '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:55:200_gpu__Fish2/Dataset_2021_05_18__13:32:25_120nD__90nS__fish2_new/XLFM_stack_S/*tif', help='For augmentation the volumes must be computed, perhaps this volumes where arleady computed?.')
 parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt")
 parser.add_argument('--files_to_store', nargs='+', default=[], help='Relative paths of files to store in a zip when running this script, for backup.')
-parser.add_argument('--prefix', nargs='?', default= "fish2_new", help='Prefix string for the output folder.')
+parser.add_argument('--prefix', nargs='?', default= "fish2_new_toDelete", help='Prefix string for the output folder.')
 parser.add_argument('--checkpoint', nargs='?', default= check, help='File path of checkpoint of SLNet.')
 parser.add_argument('--psf_file', nargs='?', default= main_folder + "/data/20200730_XLFM_beads_images/20200730_XLFM_PSF_2.5um/PSF_2.5um_processed.mat", help='.mat matlab file with PSF stack, used for deconvolution.')
 # Images related arguments
 parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,193,1)), help='Indeces of images to train on.')
-parser.add_argument('--n_simulations', type=int, default=90, help='Number of samples to generate.')
+parser.add_argument('--n_simulations', type=int, default=50, help='Number of samples to generate.')
+
 # Noise arguments
 parser.add_argument('--add_noise', type=int, default=0, help='Apply noise to images? 0 or 1')
 parser.add_argument('--signal_power_max', type=float, default=30**2, help='Max signal value to control signal to noise ratio when applyting noise.')
 parser.add_argument('--signal_power_min', type=float, default=60**2, help='Min signal value to control signal to noise ratio when applyting noise.')
 parser.add_argument('--dark_current', type=float, default=106, help='Dark current value of camera.')
 parser.add_argument('--dark_current_sparse', type=float, default=0, help='Dark current value of camera.')
+# z Roll augmentation
+parser.add_argument('--max_z_roll_augm', type=int, default=80, help='Max roll posible for random roll')
 
 # Sparse decomposition arguments
 parser.add_argument('--temporal_shifts', nargs='+', type=int, default=[0,49,99], help='Which frames to use for training and testing.')
@@ -63,12 +68,12 @@ parser.add_argument('--deconv_iterations', type=int, default=50, help='Number of
 parser.add_argument('--deconv_n_depths', type=int, default=120, help='Number of depths to create in 3D deconvolution.')
 parser.add_argument('--n_depths', type=int, default=120, help='Number of depths to create in 3D deconvolution.')
 parser.add_argument('--deconv_limit', type=float, default=10000, help='Maximum intensity allowed from doconvolution.')
-parser.add_argument('--deconv_depth_split', type=int, default=60, help='Number of depths to simultaneously deconvolve in the gpu.')
-parser.add_argument('--deconv_gpu', type=int, default=2, help='GPU to use for deconvolution, -1 to use CPU, this is very memory intensive.')    
+parser.add_argument('--deconv_depth_split', type=int, default=6, help='Number of depths to simultaneously deconvolve in the gpu.')
+parser.add_argument('--deconv_gpu', type=int, default=1, help='GPU to use for deconvolution, -1 to use CPU, this is very memory intensive.')    
 
 parser.add_argument('--output_path', nargs='?', default='/space/vizcainj/shared/datasets/XLFM/camera_ready/')
 # parser.add_argument('--output_path', nargs='?', default=runs_dir + '/garbage/')
-parser.add_argument('--main_gpu', nargs='+', type=int, default=[5], help='List of GPUs to use: [0,1]')
+parser.add_argument('--main_gpu', nargs='+', type=int, default=[0], help='List of GPUs to use: [0,1]')
 
 # Set to zero if debuging
 n_threads = 0
@@ -185,6 +190,15 @@ if currArgs.deconv_iterations > 0:
     OTF,psf_shape = load_PSF_OTF(currArgs.psf_file, output_shape, n_depths=args.deconv_n_depths, 
                                 n_split=n_split, lenslet_centers_file_out="", compute_transpose=True)
 
+    # OTF = OTF[:,OTF.shape[1]//2,...].unsqueeze(1).repeat(1,OTF.shape[1],1,1,1)
+# If augmentation desired, check if the deconvolved volumes are already computed
+if args.max_z_roll_augm > 0:
+    precomputed_volume_path = {'raw' : os.path.split(args.volume_raw_reference_path)[0],
+                                'sparse': os.path.split(args.volume_sparse_reference_path)[0]}
+
+
+    precomputed_volume_path_list = {'raw' : sorted(glob.glob(args.volume_raw_reference_path)),
+                                'sparse': sorted(glob.glob(args.volume_sparse_reference_path)) }
 
 
 # Create array to gather all images, which contains:
@@ -266,18 +280,64 @@ with torch.no_grad():
 
         # Deconvolve the SLNet sparse image and store the 3D stack
         if currArgs.deconv_iterations > 0:
-            start.record()
-            img_to_deconv_net = sparse_part[:,currArgs.frame_to_grab].unsqueeze(1).float()
-            deconv_net,proj_net,forward_net,_ = XLFMDeconv(OTF, img_to_deconv_net, currArgs.deconv_iterations, 
-                                                device=device_deconv, all_in_device=0, 
-                                                nSplitFourier=args.deconv_depth_split,max_allowed=args.deconv_limit)
-            end.record()
-            torch.cuda.synchronize()
-            end_time_deconv_net = start.elapsed_time(end) / curr_img_stack.shape[0]
-            deconv_net = deconv_net[:, currArgs.deconv_n_depths//2-currArgs.n_depths//2 : currArgs.deconv_n_depths//2+currArgs.n_depths//2,...]
-            print(end_time_deconv_net,'s  ',str(deconv_net.max()))
-            imsave(output_dir + '/XLFM_stack_S/XLFM_stack_'+ "%03d" % nSimul + '.tif', deconv_net.cpu().numpy())
+            img_shape = sparse_part.shape[-2:]
+            try:
+                deconv_vol = dataset.read_tiff_stack(precomputed_volume_path_list['sparse'][curr_index], out_datatype=np.float32).permute(2,0,1).unsqueeze(0)
+                print('Loaded sparse deconvolution')
+            except:
+                start.record()
+                img_to_deconv_net = sparse_part[:,currArgs.frame_to_grab].unsqueeze(1).float()
+                deconv_vol,proj_net,forward_net,_ = XLFMDeconv(OTF, img_to_deconv_net, currArgs.deconv_iterations, 
+                                                    device=device_deconv, all_in_device=0, 
+                                                    nSplitFourier=args.deconv_depth_split,max_allowed=args.deconv_limit)
+                end.record()
+                torch.cuda.synchronize()
+                end_time_deconv_net = start.elapsed_time(end) / curr_img_stack.shape[0]
+                deconv_vol = deconv_vol[:, currArgs.deconv_n_depths//2-currArgs.n_depths//2 : currArgs.deconv_n_depths//2+currArgs.n_depths//2,...]
+                print(end_time_deconv_net,'s  ',str(deconv_vol.max()))
 
+            # Augmentation needed? We need 3 volumes for this, then shift in z then compute their forward projections
+            if args.max_z_roll_augm > 0:
+                # Create new image storages
+                augmented_images = {'raw' : sparse_part.clone(), 'sparse' : sparse_part.clone()}
+                augmented_raw_image_stack = raw_image_stack.clone()
+                # Temprarly store augmented volumes
+                augmented_sparse_volumes = deconv_vol.clone().unsqueeze(-1).repeat(1,1,1,1,len(args.temporal_shifts))
+                # Roll volume
+                roll_amount = torch.randint(-args.max_z_roll_augm, args.max_z_roll_augm, [1])[0]
+                for img_id in range(len(args.temporal_shifts)):
+                    vol_id = args.temporal_shifts[img_id] + curr_index
+                    # Select image to deconvolve
+                    curr_image = {'raw':raw_image_stack[:,img_id,...].clone().unsqueeze(1), 'sparse':sparse_part[:,img_id,...].clone().unsqueeze(1)}
+                    # Is it the raw or the sparse image? we need both
+                    for type_volume in ['raw','sparse']:
+                        volume_exists = False
+                        # Check if volumes exist
+                        try:
+                            curr_vol = dataset.read_tiff_stack(precomputed_volume_path_list[type_volume][vol_id], out_datatype=np.float32).permute(2,0,1).unsqueeze(0)
+                            volume_exists = True
+                            print('Loaded augmented ' + type_volume + ' deconvolution')
+                        except: # Deconvolve them
+                            curr_vol,_,_,_ = XLFMDeconv(OTF, curr_image[type_volume].float(), currArgs.deconv_iterations, 
+                                                            device=device_deconv, all_in_device=0, 
+                                                            nSplitFourier=args.deconv_depth_split,max_allowed=args.deconv_limit)
+                        if not volume_exists:
+                            imsave(precomputed_volume_path[type_volume] + '/XLFM_stack_'+ "%03d" % vol_id + '.tif', curr_vol.cpu().numpy())
+                        curr_vol = torch.roll(curr_vol, (roll_amount.item()), 1)
+                        # Compute new forward projection
+                        new_img = XLFM_forward_projection(OTF, curr_vol, [1,1,OTF.shape[2],OTF.shape[2]], nSplitFourier=args.deconv_depth_split)
+                        # Crop center to match original image
+                        new_img = new_img[:,:,new_img.shape[2]//2-img_shape[0]//2 : new_img.shape[2]//2+img_shape[0]//2, \
+                                                new_img.shape[3]//2-img_shape[1]//2 : new_img.shape[3]//2+img_shape[1]//2]
+                        # Update sparse image and store it
+                        augmented_images[type_volume][:,img_id,...] = new_img[:,0,...]/new_img.sum() * curr_image[type_volume].cpu().float().sum()
+                        # Store augmented volumes 
+                        augmented_sparse_volumes[...,img_id] = curr_vol.clone()
+            # Overwrite output images
+            sparse_part = augmented_images['sparse'].clone()
+            raw_image_stack = augmented_images['raw'].clone()
+            # Overwrite volume
+            deconv_vol = augmented_sparse_volumes[...,currArgs.frame_to_grab]
         # Generate GT with SL decomposition and deconvolve it
         if args.SD_iterations > 0:
             dense_part_SL,sparse_part_SL,_ = SLDecomposition(curr_img_stack, maxIter=args.SD_iterations)
@@ -291,14 +351,14 @@ with torch.no_grad():
             if currArgs.deconv_iterations > 0:
                 start.record()
                 img_to_deconv_SL = sparse_part_SL[:,currArgs.frame_to_grab].unsqueeze(1).float()
-                deconv_SL,proj_SL,forward_SL,_ = XLFMDeconv(OTF, img_to_deconv_SL, currArgs.deconv_iterations, device=device, all_in_device=args.deconv_gpu)
+                deconv_SL,proj_SL,forward_SL,_ =    XLFMDeconv(OTF, img_to_deconv_SL, currArgs.deconv_iterations, 
+                                                    device=device, all_in_device=args.deconv_gpu)
                 end.record()
                 torch.cuda.synchronize()
                 end_time_deconv_SL = start.elapsed_time(end) / curr_img_stack.shape[0]
-
                 deconv_SL = deconv_SL[:, currArgs.deconv_n_depths//2-currArgs.n_depths//2 : currArgs.deconv_n_depths//2+currArgs.n_depths//2,...]
 
-                imsave(output_dir + '/XLFM_stack_S_SL/XLFM_stack_'+ "%03d" % nSimul + '.tif', deconv_SL.cpu().numpy())
+                
             # set to true for plotting
             if False:
                 plot_multiplier = 4
@@ -330,7 +390,11 @@ with torch.no_grad():
         all_images[1,curr_img_ix:curr_img_ix+len(args.temporal_shifts),...] = dense_part.cpu().numpy().astype(np.float16)
         all_images[2,curr_img_ix:curr_img_ix+len(args.temporal_shifts),...] = sparse_part.cpu().numpy().astype(np.float16)
 
-              
+        # Store volumes
+        if currArgs.deconv_iterations > 0:
+            imsave(output_dir + '/XLFM_stack_S/XLFM_stack_'+ "%03d" % nSimul + '.tif', deconv_vol.cpu().numpy())
+            if args.SD_iterations > 0:
+                imsave(output_dir + '/XLFM_stack_S_SL/XLFM_stack_'+ "%03d" % nSimul + '.tif', deconv_SL.cpu().numpy())
 
         rescale_img = lambda img: F.interpolate( img, [img.shape[-2]//10, img.shape[-1]//10])
         
@@ -374,4 +438,4 @@ writer.add_scalar('mean/min_time', min_time)
 
 writer.close()
             
-        
+
