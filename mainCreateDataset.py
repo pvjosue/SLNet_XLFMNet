@@ -25,27 +25,17 @@ from utils.misc_utils import *
 from utils.XLFMDeconv import *
 from nets.SLNet import *
 
-main_folder = "/u/home/vizcainj/code/XLFMNet/"
-runs_dir = "/space/vizcainj/shared/XLFMNet/runs/"
-data_dir = "/space/vizcainj/shared/datasets/XLFM/"
-# Real image 
-# filename = "20200903_NLS_GCaMP6s_XLFM_confocal10x/XLFM/all_images"
-filename = "20201111_test_fish/fish2_new"
-# filename = "20201111_test_fish/fish3_new5outScaleS_Jan19"
-
-check = '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:55:200_gpu__Fish2/model_300'
-
 
 # Arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_folder', nargs='?', default= data_dir + "/XLFM_real_fish/" + filename, help='Input images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
-parser.add_argument('--volume_raw_reference_path', nargs='?', default= '/u/home/vizcainj/datasets/XLFM/XLFM_real_fish/SDLFM/Deconvolved/11_11_2020__testset_fish2_new_SLdec_512_optim_1outScaleS/XLFM_stack/*tif', help='For augmentation the volumes must be computed, perhaps this volumes where arleady computed?. use: path + *tif')
-parser.add_argument('--volume_sparse_reference_path', nargs='?', default= '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:55:200_gpu__Fish2/Dataset_2021_05_18__13:32:25_120nD__90nS__fish2_new/XLFM_stack_S/*tif', help='For augmentation the volumes must be computed, perhaps this volumes where arleady computed?.')
+parser.add_argument('--data_folder', nargs='?', default="", help='Input images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
+parser.add_argument('--volume_raw_reference_path', nargs='?', default= '*tif', help='For augmentation the volumes must be computed, perhaps this volumes where arleady computed?. use: path + *tif')
+parser.add_argument('--volume_sparse_reference_path', nargs='?', default= '*tif', help='For augmentation the volumes must be computed, perhaps this volumes where arleady computed?.')
 parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt")
 parser.add_argument('--files_to_store', nargs='+', default=[], help='Relative paths of files to store in a zip when running this script, for backup.')
-parser.add_argument('--prefix', nargs='?', default= "fish2_new_toDelete", help='Prefix string for the output folder.')
-parser.add_argument('--checkpoint', nargs='?', default= check, help='File path of checkpoint of SLNet.')
-parser.add_argument('--psf_file', nargs='?', default= main_folder + "/data/20200730_XLFM_beads_images/20200730_XLFM_PSF_2.5um/PSF_2.5um_processed.mat", help='.mat matlab file with PSF stack, used for deconvolution.')
+parser.add_argument('--prefix', nargs='?', default= "fishy", help='Prefix string for the output folder.')
+parser.add_argument('--checkpoint', nargs='?', default= "", help='File path of checkpoint of SLNet.')
+parser.add_argument('--psf_file', nargs='?', default= "PSF_2.5um_processed.mat", help='.mat matlab file with PSF stack, used for deconvolution.')
 # Images related arguments
 parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,193,1)), help='Indeces of images to train on.')
 parser.add_argument('--n_simulations', type=int, default=50, help='Number of samples to generate.')
@@ -71,7 +61,7 @@ parser.add_argument('--deconv_limit', type=float, default=10000, help='Maximum i
 parser.add_argument('--deconv_depth_split', type=int, default=6, help='Number of depths to simultaneously deconvolve in the gpu.')
 parser.add_argument('--deconv_gpu', type=int, default=1, help='GPU to use for deconvolution, -1 to use CPU, this is very memory intensive.')    
 
-parser.add_argument('--output_path', nargs='?', default='/space/vizcainj/shared/datasets/XLFM/camera_ready/')
+parser.add_argument('--output_path', nargs='?', default='')
 # parser.add_argument('--output_path', nargs='?', default=runs_dir + '/garbage/')
 parser.add_argument('--main_gpu', nargs='+', type=int, default=[0], help='List of GPUs to use: [0,1]')
 

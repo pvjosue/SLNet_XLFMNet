@@ -1,7 +1,6 @@
 import torch
 import torchvision as tv
 import torch.nn.functional as F
-# from WaveBlocks2021 import WaveBlocksPytorch as ob
 from waveblocks.utils import complex_operations as ob
 from PIL import Image
 import torchvision.transforms as TF
@@ -101,7 +100,7 @@ def reprojection_loss_camera(gt_imgs, prediction, PSF, camera, dataset, device="
     out_type = gt_imgs.type()
     camera = camera.to(device)
     reprojection = camera(prediction.to(device), PSF.to(device))
-    reprojection_views[0,...] = dataset.extract_views(reprojection, dataset.lenslet_coords, dataset.subimage_shape)[0,0,...]
+    reprojection_views = dataset.extract_views(reprojection, dataset.lenslet_coords, dataset.subimage_shape)[0,0,...]
     loss = F.mse_loss(gt_imgs.float().to(device), reprojection_views.float().to(device))
 
     return loss.type(out_type), reprojection_views.type(out_type), gt_imgs.type(out_type), reprojection.type(out_type)

@@ -23,23 +23,14 @@ from utils.XLFMDataset import XLFMDatasetFull
 from utils.misc_utils import *
 
 
-runs_dir = "runs/"
-data_dir = "XLFM/"
-main_folder = "/u/home/vizcainj/code/XLFMNet/"
-runs_dir = "/space/vizcainj/shared/XLFMNet/runs/"
-data_dir = "/space/vizcainj/shared/datasets/XLFM/"
-# Real image 
-filename = "20200903_NLS_GCaMP6s_XLFM_confocal10x/XLFM/all_images"
-filename = "20201111_test_fish/fish2_new"
-
 # Arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_folder', nargs='?', default= data_dir + "/XLFM_real_fish/" + filename, help='Input training images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
-parser.add_argument('--data_folder_test', nargs='?', default= data_dir + "/XLFM_real_fish/" + filename, help='Input testing image path')
-parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_coords.txt", help='Text file with the lenslet coordinates pairs x y "\n"')
+parser.add_argument('--data_folder', nargs='?', default= "", help='Input training images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
+parser.add_argument('--data_folder_test', nargs='?', default= "", help='Input testing image path')
+parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt", help='Text file with the lenslet coordinates pairs x y "\n"')
 
 parser.add_argument('--files_to_store', nargs='+', default=[], help='Relative paths of files to store in a zip when running this script, for backup.')
-parser.add_argument('--prefix', nargs='?', default= "Fish2", help='Prefix string for the output folder.')
+parser.add_argument('--prefix', nargs='?', default= "fishy", help='Prefix string for the output folder.')
 parser.add_argument('--checkpoint', nargs='?', default= "", help='File path of checkpoint of previous run.')
 # Images related arguments
 parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,140,1)), help='Indeces of images to train on.')
@@ -74,7 +65,7 @@ parser.add_argument('--use_random_shifts', nargs='+', type=int, default=0, help=
 parser.add_argument('--frame_to_grab', type=int, default=0, help='Which frame to show from the sparse decomposition?')
 parser.add_argument('--l0_ths', type=float, default=0.05, help='Threshold value for alpha in nuclear decomposition')
 # misc arguments
-parser.add_argument('--output_path', nargs='?', default=runs_dir + '/camera_ready_github/')
+parser.add_argument('--output_path', nargs='?', default='')
 parser.add_argument('--main_gpu', nargs='+', type=int, default=[0], help='List of GPUs to use: [0,1]')
 
 n_threads = 0

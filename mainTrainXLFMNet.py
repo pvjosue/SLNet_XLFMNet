@@ -20,36 +20,17 @@ import utils.pytorch_shot_noise as pytorch_shot_noise
 from utils.XLFMDataset import XLFMDatasetFull
 from utils.misc_utils import *
 
-main_folder = "/u/home/vizcainj/code/XLFMNet/"
-runs_dir = "/space/vizcainj/shared/XLFMNet/runs/"
-data_dir = "/space/vizcainj/shared/datasets/XLFM/"
-
-filename = "/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/2021_03_26__13:55:15_120nD__20_F__3timeF__10000_DecLimit__2"
-filename = "/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_03_26__11:54:000_gpu__/2021_04_30__14:24:27_120nD__20_F__3timeF__10000_DecLimit__3FramesStored"
-filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_03__16:06:25_120nD__20_F__3timeF__10000_DecLimit__3FramesStored"
-filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/old_deconv"
-filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_04__16:51:49_120nD__20_F__3timeF__10000_DecLimit__3FramesStored_180Depths"
-filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready//2021_05_05__15:38:59_120nD__20_F__3timeF__10000_DecLimit__50It_180Depths"
-filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_12__17:29:50_120nD__20_F__3timeF__10000_DecLimit__fish3_new5outScaleS_Jan19"
-filename = "/space/vizcainj/shared/datasets/XLFM/camera_ready/2021_05_17__17:41:03_120nD__20_F__3timeF__10000_DecLimit__fish3_new5outScaleS_Jan19"
-
-
-check = '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:55:200_gpu__Fish2/'
-test_file_name = check + 'Dataset_2021_05_18__13:32:25_120nD__90nS__fish2_new'
-check = check + 'model_300'
-
-filename = '/space/vizcainj/shared/XLFMNet/runs/camera_ready_github/2021_05_17__16:55:200_gpu__Fish2/Dataset_2021_05_21__11:50:23_120nD__50nS__fish2_new_Augmented/'
 # Arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_folder', nargs='?', default= filename)
-parser.add_argument('--data_folder_test', nargs='?', default=test_file_name)
+parser.add_argument('--data_folder', nargs='?', default= '')
+parser.add_argument('--data_folder_test', nargs='?', default='')
 parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt")
 parser.add_argument('--files_to_store', nargs='+', default=['mainTrainXLFMNet.py','mainTrainSLNet.py','mainCreateDataset.py','utils/XLFMDataset.py','utils/misc_utils.py','nets/extra_nets.py','nets/XLFMNet.py','nets/SLNet.py'])
-parser.add_argument('--psf_file', nargs='?', default= main_folder + "/data/20200730_XLFM_beads_images/20200730_XLFM_PSF_2.5um/PSF_2.5um_processed.mat")
-parser.add_argument('--prefix', nargs='?', default= "50itDeconv_fish2_new_augmented")
+parser.add_argument('--psf_file', nargs='?', default= "PSF_2.5um_processed.mat")
+parser.add_argument('--prefix', nargs='?', default= "fishy")
 parser.add_argument('--checkpoint', nargs='?', default= "")
 parser.add_argument('--checkpoint_XLFMNet', nargs='?', default= "")
-parser.add_argument('--checkpoint_SLNet', nargs='?', default=check)
+parser.add_argument('--checkpoint_SLNet', nargs='?', default="")
 
 parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,50,1)))
 parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(0,10,1)))
