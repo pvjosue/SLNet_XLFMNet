@@ -218,9 +218,10 @@ class XLFMDatasetFull(data.Dataset):
         indices = [img_index + temporal_shifts_ixs[i] for i in range(self.n_frames)] #list(range(index,index+self.n_frames))
         
         views_out = self.stacked_views[indices,...]
-        # nDims = list(range(2,len(views_out.shape)))
-        # views_out = views_out.permute(1,0,*nDims)
         if self.load_vols is False:
+            # if no sparse info, just repeat the views_out twice
+            if views_out.ndim == 3:
+                views_out = views_out.unsqueeze(-1).repeat(1,1,1,2)
             return views_out,0
         vol_out = self.vols[index,...]
         
