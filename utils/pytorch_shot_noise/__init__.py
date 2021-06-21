@@ -14,7 +14,7 @@ def add_camera_noise(input_irrad_gray, qe=0.82, sensitivity=5.88,
     input_irrad_photons = input_irrad_electrons / qe
 
     # Add shot noise
-    distribution_poiss = torch.distributions.poisson.Poisson(input_irrad_photons)
+    distribution_poiss = torch.distributions.poisson.Poisson(input_irrad_photons+1e-5)
     distribution_norm = torch.distributions.normal.Normal(torch.zeros_like(input_irrad_photons), dark_noise)
     photons = distribution_poiss.sample()
     
