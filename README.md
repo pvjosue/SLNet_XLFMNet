@@ -3,6 +3,7 @@
 [![Issues][issues-shield]][issues-url]-->
 [![Apache License][license-shield]][license-url]
 [![Google Scholar][gs-shield]][gs-url]
+[![][pdf-shield]][pdf-url]
 
 # Real-Time Light Field 3D Microscopy via Sparsity-Driven Learned Deconvolution
 
@@ -158,10 +159,14 @@ Project Link: [https://github.com/pvjosue/SLNet_XLFMNet](https://github.com/pvjo
 ```bibtex
 @article{pageXLFMNet2021,
     author = {Page~Vizcaino, Josue and Wang, Zeguan and Symvoulidis, Panagiotis and Favaro, Paolo and Guner-Ataman, Burcu and Boyden, Edward~S. and Lasser, Tobias},
-    title = {Real-Time Light Field 3D Microscopy via Sparsity-Driven Learned Deconvolution},
-    booktitle = {to be available},
-    year = {2021}
-}
+    booktitle={2021 IEEE International Conference on Computational Photography (ICCP)}, 
+    title={Real-Time Light Field 3D Microscopy via Sparsity-Driven Learned Deconvolution}, 
+    year={2021},
+    volume={},
+    number={},
+    pages={1-11},
+    doi={10.1109/ICCP51581.2021.9466256}
+    }
 ```
 
 
@@ -174,7 +179,9 @@ Project Link: [https://github.com/pvjosue/SLNet_XLFMNet](https://github.com/pvjo
 [issues-url]: https://github.com/pvjosue/LFMNet/issues
 [license-shield]: https://img.shields.io/github/license/othneildrew/Best-README-Template.svg?style=flat-square
 [license-url]: https://github.com/pvjosue/LFMNet/blob/master/LICENSE
-[gs-shield]: https://img.shields.io/badge/-GoogleScholar-black.svg?style=flat-square&logo=google-scholar&colorB=555
+[gs-shield]: https://img.shields.io/badge/-GoogleScholar-black.svg?style=flat-square&logo=google-scholarc&colorB=555
+[pdf-shield]: https://img.shields.io/badge/-PDF-black.svg?style=flat-square&logo=pdf&colorB=555
+[pdf-url]: https://ieeexplore.ieee.org/document/9466256
 [gs-url]: https://scholar.google.com/citations?user=5WfCRjQAAAAJ&hl=en
 [product-screenshot]: images/screenshot.png
 
