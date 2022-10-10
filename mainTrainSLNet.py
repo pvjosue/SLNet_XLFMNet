@@ -1,10 +1,9 @@
 import torch
-import nrrd
 import sys
 from PIL import Image
 
 from torch.utils import data
-from torch.utils.data.sampler import SubsetRandomSampler
+from torch.utils.data.sampler import SubsetRandomSampler,SequentialSampler
 from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import autocast,GradScaler
 import torchvision as tv
@@ -23,24 +22,38 @@ from utils.XLFMDataset import XLFMDatasetFull
 from utils.misc_utils import *
 
 
+runs_dir = ""
+data_dir = ""
+main_folder = "XLFMNet/"
+runs_dir = "XLFMNet/runs/"
+data_dir = "XLFM/"
+# Real image 
+filename = "20201111_test_fish/fish2_new"
+
+dataset_paths = {   'fish2_new' : 'fish2_new/',
+                    'beads'     : 'beads/'
+                }
+
+dataset_to_use = 'fish2'
+
 # Arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_folder', nargs='?', default= "", help='Input training images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
-parser.add_argument('--data_folder_test', nargs='?', default= "", help='Input testing image path')
-parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_centers_python.txt", help='Text file with the lenslet coordinates pairs x y "\n"')
+parser.add_argument('--data_folder', nargs='?', default= dataset_paths[dataset_to_use], help='Input training images path in format /XLFM_image/XLFM_image_stack.tif and XLFM_image_stack_S.tif in case of a sparse GT stack.')
+parser.add_argument('--data_folder_test', nargs='?', default= dataset_paths[dataset_to_use], help='Input testing image path')
+parser.add_argument('--lenslet_file', nargs='?', default= "lenslet_coords.txt", help='Text file with the lenslet coordinates pairs x y "\n"')
 
 parser.add_argument('--files_to_store', nargs='+', default=[], help='Relative paths of files to store in a zip when running this script, for backup.')
-parser.add_argument('--prefix', nargs='?', default= "fishy", help='Prefix string for the output folder.')
+parser.add_argument('--prefix', nargs='?', default= "Fish2", help='Prefix string for the output folder.')
 parser.add_argument('--checkpoint', nargs='?', default= "", help='File path of checkpoint of previous run.')
 # Images related arguments
-parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,140,1)), help='Indeces of images to train on.')
-parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(0,120,1)), help='Indeces of images to test on.')
+parser.add_argument('--images_to_use', nargs='+', type=int, default=list(range(0,1000,1)), help='Indeces of images to train on.')
+parser.add_argument('--images_to_use_test', nargs='+', type=int, default=list(range(100,220,1)), help='Indeces of images to test on.')
 parser.add_argument('--lenslet_crop_size', type=int, default=512, help='Side size of the microlens image.')
 parser.add_argument('--img_size', type=int, default=2160, help='Side size of input image, square prefered.')
 # Training arguments
 parser.add_argument('--batch_size', type=int, default=8, help='Training batch size.') 
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='Training learning rate.')
-parser.add_argument('--max_epochs', type=int, default=1001, help='Training epochs to run.')
+parser.add_argument('--max_epochs', type=int, default=101, help='Training epochs to run.')
 parser.add_argument('--validation_split', type=float, default=0.1, help='Which part to use for validation 0 to 1.')
 parser.add_argument('--eval_every', type=int, default=10, help='How often to evaluate the testing/validaton set.')
 parser.add_argument('--shuffle_dataset', type=int, default=1, help='Radomize training images 0 or 1')
@@ -65,8 +78,8 @@ parser.add_argument('--use_random_shifts', nargs='+', type=int, default=0, help=
 parser.add_argument('--frame_to_grab', type=int, default=0, help='Which frame to show from the sparse decomposition?')
 parser.add_argument('--l0_ths', type=float, default=0.05, help='Threshold value for alpha in nuclear decomposition')
 # misc arguments
-parser.add_argument('--output_path', nargs='?', default='')
-parser.add_argument('--main_gpu', nargs='+', type=int, default=[0], help='List of GPUs to use: [0,1]')
+parser.add_argument('--output_path', nargs='?', default=runs_dir + '/camera_ready_github/')
+parser.add_argument('--main_gpu', nargs='+', type=int, default=[], help='List of GPUs to use: [0,1]')
 
 n_threads = 0
 args = parser.parse_args()
@@ -116,6 +129,10 @@ dataset_test = XLFMDatasetFull(args.data_folder_test, args.lenslet_file, args.su
 max_images,max_images_sparse,max_volumes = dataset.get_max() 
 mean_imgs,std_images,mean_vols,std_vols = dataset.get_statistics()
 
+
+dataset.stacked_views, _ = normalize_type(dataset.stacked_views, 0, args.norm_type, mean_imgs, std_images, mean_vols, std_vols, max_images, max_volumes)
+dataset_test.stacked_views, _ = normalize_type(dataset_test.stacked_views, 0, args.norm_type, mean_imgs, std_images, mean_vols, std_vols, max_images, max_volumes)
+
 # Creating data indices for training and validation splits:
 dataset_size = len(dataset)
 indices = list(range(dataset_size))
@@ -139,6 +156,16 @@ data_loaders = \
                                     sampler=valid_sampler, pin_memory=False, num_workers=n_threads), \
     'test'  : \
             data.DataLoader(dataset_test, batch_size=1, pin_memory=False, num_workers=n_threads, shuffle=True)
+    }
+
+# Eval samples
+data_loaders_save = \
+    {'train' : \
+            data.DataLoader(dataset, batch_size=1, 
+                                sampler=SequentialSampler(list(range(dataset_size))), pin_memory=False, num_workers=n_threads), \
+    'test'  : \
+            data.DataLoader(dataset_test, batch_size=1, 
+                                sampler=SequentialSampler(list(range(len(dataset_test)))), pin_memory=False, num_workers=n_threads, shuffle=False)
     }
 
 
@@ -227,20 +254,20 @@ for epoch in range(start_epoch, args.max_epochs):
 
         # Training
         for ix,(curr_img_stack, _) in enumerate(curr_loader):
-            curr_img_stack = curr_img_stack.to(device)
+            curr_img_stack = curr_img_stack[...,0].to(device)
             
             # if GT sparse images are not loaded, then let's replicate the input images to avoid errors
-            if not curr_loader.dataset.load_sparse:
-                curr_img_stack = curr_img_stack.unsqueeze(-1).repeat(1,1,1,1,2)
-            assert len(curr_img_stack.shape)>=5, "If sparse is used curr_img_stack should contain both images, dense and sparse stacked in the last dim."
-            curr_img_sparse = curr_img_stack[...,-1].clone().to(device) 
-            curr_img_stack = curr_img_stack[...,0].clone() 
+            # if curr_img_stack.ndim != 5:
+            #     curr_img_stack = curr_img_stack.unsqueeze(-1).repeat(1,1,1,1,2)
+            # assert len(curr_img_stack.shape)>=5, "If sparse is used curr_img_stack should contain both images, dense and sparse stacked in the last dim."
+            # curr_img_sparse = curr_img_stack[...,-1].clone().to(device) 
+            # curr_img_stack = curr_img_stack[...,0].clone() 
 
-            if True: # todo flag to check if it's a real dataset
-                curr_img_stack -= args.dark_current
-                curr_img_stack = F.relu(curr_img_stack).detach()
-                curr_img_sparse -= args.dark_current_sparse
-                curr_img_sparse = F.relu(curr_img_sparse).detach()
+            # if True: # todo flag to check if it's a real dataset
+            #     curr_img_stack -= args.dark_current
+            #     curr_img_stack = F.relu(curr_img_stack).detach()
+            #     curr_img_sparse -= args.dark_current_sparse
+            #     curr_img_sparse = F.relu(curr_img_sparse).detach()
 
             # Apply noise if needed, and only in the test set, as the train set comes from real images
             if args.add_noise==1 and curr_train_stage!='test':
@@ -254,7 +281,7 @@ for epoch in range(start_epoch, args.max_epochs):
 
                 
             # Normalize input images
-            curr_img_stack, _ = normalize_type(curr_img_stack, 0, args.norm_type, mean_imgs, std_images, mean_vols, std_vols, max_images, max_volumes)
+            # curr_img_stack, _ = normalize_type(curr_img_stack, 0, args.norm_type, mean_imgs, std_images, mean_vols, std_vols, max_images, max_volumes)
             
             if curr_train_stage=='train':
                 net.zero_grad()
@@ -264,8 +291,7 @@ for epoch in range(start_epoch, args.max_epochs):
                 torch.cuda.synchronize()
                 start.record()
                 # Predict dense part with the network
-                dense_part = net(curr_img_stack)
-                dense_part = F.relu(dense_part)
+                dense_part = F.relu(net(curr_img_stack))
 
                 # Compute sparse part
                 sparse_part = F.relu(curr_img_stack-dense_part)
@@ -293,13 +319,9 @@ for epoch in range(start_epoch, args.max_epochs):
                 dense_vector = dense_crop.view(dense_part.shape[0],dense_part.shape[1],-1)
                 with autocast(enabled=False):
                     (u,s,v) = torch.svd_lowrank(dense_vector.permute(0,2,1).float(), q=args.rank)
-                    sOriginal = torch.autograd.Variable(s.clone())
                     # eigenvalues thresholding operation
                     s = torch.sign(s) * torch.max(s.abs() - net.mu_sum_constraint, torch.zeros_like(s))
 
-                mean_eigen_values += sOriginal.mean(dim=0).detach().cpu()
-                mean_eigen_values_cropped += s.mean(dim=0).detach().cpu()
-                
                 # Reconstruct the images from the eigen information
                 for nB in range(s.shape[0]):
                     currS = torch.diag(s[nB,:])
@@ -309,10 +331,10 @@ for epoch in range(start_epoch, args.max_epochs):
                 # Compute full loss
                 full_loss = F.l1_loss(reconstructed_dense,curr_img_crop) + net.alpha_l1 * sparse_crop.abs().mean() + Y.abs().mean()
 
-                sparse_crop = F.relu(curr_img_crop - reconstructed_dense)
                 
                 
                 if ix==0 and args.plot_images:
+                    sparse_crop = F.relu(curr_img_crop - reconstructed_dense)
                     plt.clf()
                     for n in range(0,3):
                         plt.subplot(3,4,4*n+1)
@@ -348,7 +370,7 @@ for epoch in range(start_epoch, args.max_epochs):
 
 
             # detach tensors for display
-            curr_img_sparse = curr_img_sparse.detach()
+            # curr_img_sparse = curr_img_sparse.detach()
             curr_img_stack = curr_img_stack.detach()
             dense_part = dense_part.detach()
             sparse_part = sparse_part.detach()
@@ -365,10 +387,6 @@ for epoch in range(start_epoch, args.max_epochs):
         mean_loss /= curr_loader_len
         mean_psnr = 20 * torch.log10(max_images / torch.sqrt(torch.tensor(mean_loss))) 
         mean_time /= curr_loader_len
-        mean_eigen_values /= curr_loader_len
-        mean_eigen_values_cropped /= curr_loader_len
-        mean_eigen_crop = mean_eigen_values_cropped.sum().item()/mean_eigen_values.sum().item()
-        mean_sparse_l1 = F.relu(sparse_part).mean().item()
 
 
         if epoch%args.eval_every==0:
@@ -390,7 +408,7 @@ for epoch in range(start_epoch, args.max_epochs):
             perf_metrics['Fro_Ratio_SLNet'].append(fro_SLNet/fro_M)
 
             
-            input_noisy_grid = tv.utils.make_grid(curr_img_stack[0,0,...].float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)
+            # input_noisy_grid = tv.utils.make_grid(curr_img_stack[0,0,...].float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)
 
             sparse_part = F.relu(sparse_part.detach()).float()
             dense_prediction = F.relu(dense_part.detach()).float()
@@ -404,18 +422,18 @@ for epoch in range(start_epoch, args.max_epochs):
             dense_prediction /= Y.max()
             input_intermediate_dense_grid = tv.utils.make_grid(dense_prediction[0,0,...].float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)
             
-            dense_prediction /= Y.max()
-            input_intermediate_recon_dense_grid = tv.utils.make_grid(dense_prediction[0,0,...].float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)
+            # dense_prediction /= Y.max()
+            # input_intermediate_recon_dense_grid = tv.utils.make_grid(dense_prediction[0,0,...].float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)
             
-            input_intermediate_sparse_GT_grid = tv.utils.make_grid(curr_img_sparse[0,0,...].float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)
+            # input_intermediate_sparse_GT_grid = tv.utils.make_grid(curr_img_sparse[0,0,...].float().unsqueeze(0).cpu().data.detach(), normalize=True, scale_each=False)
             
-            writer.add_image('input_noisy_'+curr_train_stage, input_noisy_grid, epoch)
+            # writer.add_image('input_noisy_'+curr_train_stage, input_noisy_grid, epoch)
             writer.add_image('image_intermediate_sparse'+curr_train_stage, input_intermediate_sparse_grid, epoch)
             writer.add_image('image_intermediate_dense'+curr_train_stage, input_intermediate_dense_grid, epoch)
-            writer.add_image('image_reconSVC_dense'+curr_train_stage, input_intermediate_recon_dense_grid, epoch)
-            writer.add_image('GT_S_'+curr_train_stage, input_intermediate_sparse_GT_grid, epoch)
+            # writer.add_image('image_reconSVC_dense'+curr_train_stage, input_intermediate_recon_dense_grid, epoch)
+            # writer.add_image('GT_S_'+curr_train_stage, input_intermediate_sparse_GT_grid, epoch)
             writer.add_scalar('Loss/'+curr_train_stage, mean_loss, epoch)
-            writer.add_scalar('Loss/mean_sparse_l1_'+curr_train_stage, mean_sparse_l1, epoch)
+            # writer.add_scalar('Loss/mean_sparse_l1_'+curr_train_stage, mean_sparse_l1, epoch)
             writer.add_scalar('regularization_weights/alpha_l1', net.alpha_l1, epoch)
             writer.add_scalar('regularization_weights/mu_sum_constraint', net.mu_sum_constraint.item(), epoch)
             writer.add_scalar('regularization_weights/eigen_crop_percentage', mean_eigen_crop, epoch)
@@ -442,3 +460,19 @@ for epoch in range(start_epoch, args.max_epochs):
             'scaler_state_dict' : scaler.state_dict(),
             'loss': mean_loss},
             save_folder + '/model_'+str(epoch))
+            
+            with torch.no_grad():
+                for curr_train_stage in ['train']:
+                    curr_loader = data_loaders_save[curr_train_stage]
+                    output_sparse_images = torch.zeros_like(curr_img_stack[0,0,...].unsqueeze(0).unsqueeze(0), device='cpu').repeat(len(curr_loader),1,1,1)
+                    for ix,(curr_img_stack, _) in enumerate(curr_loader):
+                        curr_img_stack = curr_img_stack[...,0].to(device)
+            
+                        with autocast():
+                            # Predict dense part with the network
+                            dense_part = F.relu(net(curr_img_stack))
+
+                            # Compute sparse part
+                            sparse_part = F.relu(curr_img_stack-dense_part)
+                            output_sparse_images[ix,...] = sparse_part[0,0,].detach().cpu()
+                    si(output_sparse_images.permute(1,0,2,3),f'{save_folder}/Sparse_{curr_train_stage}_ep_{epoch}.tif')

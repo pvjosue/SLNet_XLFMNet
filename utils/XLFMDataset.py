@@ -2,7 +2,6 @@ import torch
 from torch.utils import data
 import torch.nn.functional as F
 import csv
-import nrrd
 import glob, os
 from PIL import Image
 from torchvision.transforms import ToTensor
@@ -74,7 +73,7 @@ class XLFMDatasetFull(data.Dataset):
             self.n_images = min(len(images_to_use), n_frames)
 
             self.all_files = sorted(glob.glob(vols_path))
-            if len(self.all_files)>0:
+            if len(self.all_files)>0 and self.load_vols:
                 self.all_files = [sorted(glob.glob(vols_path))[images_to_use[i]] for i in range(self.n_images)]
 
             if self.load_sparse:
